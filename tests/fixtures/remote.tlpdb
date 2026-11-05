@@ -107,3 +107,14 @@ catalogue-ctan /macros/latex/required/tools
 catalogue-license lppl1.3c
 catalogue-topics collection
 catalogue-version 2023-11-01c
+
+name latexdiff.x86_64-linux
+category Package
+revision 16420
+shortdesc x86_64-linux files of latexdiff
+containersize 384
+containerchecksum 37f34e90a572e49f4643e10f429e8256b4d0dd236123823ce35b8681b68322988632bb0294d806755b21ed8742757e77b4e157f202a1b781be2826a717e08618
+binfiles arch=x86_64-linux size=3
+ bin/x86_64-linux/latexdiff
+ bin/x86_64-linux/latexdiff-vc
+ bin/x86_64-linux/latexrevise

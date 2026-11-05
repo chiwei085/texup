@@ -42,10 +42,24 @@ Every command takes an optional project directory, defaulting to the current one
 | Command | Description |
 | --- | --- |
 | `texup init [dir] [--year Y]` | Create `texup.toml`. |
-| `texup build [dir]` | Compile the document and update `texup.lock`. |
+| `texup build [dir] [--locked]` | Compile the document and update `texup.lock`. With `--locked`, fail instead of installing a package or changing `texup.lock`. |
 | `texup watch [dir]` | Build, then rebuild on changes with `latexmk -pvc`. |
 | `texup fetch [dir]` | Install the packages in `texup.lock` without compiling, e.g. before going offline. |
 | `texup clean [dir]` | Remove build artifacts with `latexmk -C`. |
+| `texup why <package> [dir]` | List the files from `<package>` that the last build read, i.e. why it is in `texup.lock`. |
+| `texup exec <cmd> [args…]` | Run a TeX Live command from the project's year, installing its package first if needed. Runs in the current directory. |
+
+`texup exec` gives access to any TeX Live tool without a system-wide install,
+for example:
+
+```bash
+texup exec latexdiff-vc --git -r v1 --pdf main.tex   # marked-up diff against tag v1
+texup exec texcount -inc main.tex                    # word count
+texup exec chktex main.tex                           # lint
+```
+
+Packages installed this way are not added to `texup.lock`, which only records
+what the document itself reads.
 
 ## How it works
 
@@ -135,6 +149,36 @@ Let texup compile and LaTeX Workshop preview. Add this to your VS Code settings:
 The recipe succeeds whenever a PDF exists, so bibliography errors do not block
 the preview. If VS Code was not started from a shell, `~/.cargo/bin` may be
 missing from its `PATH`; use the absolute path to `texup` instead.
+
+## CI
+
+`texup build --locked` fails if the committed `texup.lock` is missing or does
+not match what the build uses, for example after adding a `\usepackage`
+without committing the updated lockfile. A GitHub Actions workflow:
+
+```yaml
+name: pdf
+on: [push, pull_request]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/texup
+          key: texup-${{ hashFiles('texup.toml', 'texup.lock') }}
+      - run: cargo install --git https://github.com/chiwei085/texup
+      - run: texup build --locked
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pdf
+          path: "*.pdf"
+```
+
+The cache key changes with the lockfile, so each cache holds exactly the locked
+packages. For the current (rolling) year, an uncached run installs the latest
+revisions, and `--locked` fails if any differ from the lockfile.
 
 ## Cache
 

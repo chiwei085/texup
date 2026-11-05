@@ -4,24 +4,27 @@ pub struct Pkg {
     pub name: String,
     pub revision: u64,
     pub runfiles: Vec<String>,
+    pub binfiles: Vec<String>,
 }
 
 pub fn parse(text: &str) -> Vec<Pkg> {
     let mut out = Vec::new();
     for rec in text.split("\n\n") {
-        let mut p = Pkg { name: String::new(), revision: 0, runfiles: Vec::new() };
-        let mut in_run = false;
+        let mut p = Pkg { name: String::new(), revision: 0, runfiles: Vec::new(), binfiles: Vec::new() };
+        let mut section = "";
         for line in rec.lines() {
             if let Some(f) = line.strip_prefix(' ') {
-                if in_run {
-                    p.runfiles.push(match f.strip_prefix("RELOC/") {
+                match section {
+                    "runfiles" => p.runfiles.push(match f.strip_prefix("RELOC/") {
                         Some(r) => format!("texmf-dist/{r}"),
                         None => f.to_string(),
-                    });
+                    }),
+                    "binfiles" => p.binfiles.push(f.to_string()),
+                    _ => {}
                 }
                 continue;
             }
-            in_run = line.starts_with("runfiles ");
+            section = line.split(' ').next().unwrap_or("");
             if let Some(v) = line.strip_prefix("name ") {
                 p.name = v.to_string();
             } else if let Some(v) = line.strip_prefix("revision ") {
@@ -48,6 +51,13 @@ pub fn providers<'a>(pkgs: &'a [Pkg], file: &str) -> Vec<&'a str> {
         v.push("cm-super");
     }
     v
+}
+
+// Executables live in `<pkg>.x86_64-linux`; installing `<pkg>` pulls in both halves.
+pub fn bin_provider<'a>(pkgs: &'a [Pkg], cmd: &str) -> Option<&'a str> {
+    let f = format!("bin/x86_64-linux/{cmd}");
+    let p = pkgs.iter().find(|p| p.binfiles.contains(&f))?;
+    Some(p.name.strip_suffix(".x86_64-linux").unwrap_or(&p.name))
 }
 
 pub fn owners<'a, 'b>(pkgs: &'a [Pkg], paths: impl Iterator<Item = &'b str>) -> BTreeMap<&'a str, u64> {
@@ -81,6 +91,14 @@ mod tests {
         assert_eq!(providers(&db, "cmr12.pfb"), ["amsfonts"]);
         assert!(providers(&db, "nope.sty").is_empty());
         assert_eq!(providers(&db, "tcrm1200.pfb"), ["cm-super"]);
+    }
+
+    #[test]
+    fn command_to_package() {
+        let db = fixture();
+        assert_eq!(bin_provider(&db, "latexdiff-vc"), Some("latexdiff"));
+        assert_eq!(bin_provider(&db, "latexdiff-v"), None);
+        assert!(db.iter().all(|p| p.binfiles.is_empty() || p.runfiles.is_empty()));
     }
 
     #[test]

@@ -156,13 +156,13 @@ fn ensure_tl(year: u32) -> PathBuf {
     fs::canonicalize(&tl).unwrap_or(tl)
 }
 
-fn remote_tlpdb(p: &Project) -> Vec<tlpdb::Pkg> {
+fn remote_tlpdb(year: u32, tl: &Path) -> Vec<tlpdb::Pkg> {
     let dir = home().join("tlpdb");
-    let path = dir.join(format!("{}.tlpdb", p.year));
+    let path = dir.join(format!("{year}.tlpdb"));
     if !path.exists() {
         fs::create_dir_all(&dir).unwrap_or_else(|e| die!("{e}"));
         let xz = path.with_extension("tlpdb.xz");
-        let url = format!("{}/tlpkg/texlive.tlpdb.xz", repo_of(&local_tlpdb(&p.tl)));
+        let url = format!("{}/tlpkg/texlive.tlpdb.xz", repo_of(&local_tlpdb(tl)));
         check(Command::new("curl").args(["-sSfL", "-o"]).arg(&xz).arg(url));
         check(Command::new("xz").arg("-df").arg(&xz));
     }
@@ -190,10 +190,14 @@ fn main_of(dir: &Path) -> Option<String> {
     (c.len() == 1).then(|| c.remove(0))
 }
 
+fn manifest(dir: &Path) -> Manifest {
+    let text = read(&dir.join("texup.toml")).unwrap_or_else(|| die!("no texup.toml in {}; run texup init first", dir.display()));
+    toml::from_str(&text).unwrap_or_else(|e| die!("texup.toml: {e}"))
+}
+
 fn setup(dir: &str) -> Project {
     let dir = fs::canonicalize(dir).unwrap_or_else(|e| die!("{dir}: {e}"));
-    let text = read(&dir.join("texup.toml")).unwrap_or_else(|| die!("no texup.toml in {}; run texup init first", dir.display()));
-    let m: Manifest = toml::from_str(&text).unwrap_or_else(|e| die!("texup.toml: {e}"));
+    let m = manifest(&dir);
     if let Some(e) = m.build.engine.as_deref().filter(|e| *e != "pdflatex") {
         die!("only pdflatex is supported (texup.toml says {e})");
     }
@@ -226,7 +230,7 @@ fn fetch(p: &Project) {
     }
 }
 
-fn write_lock(p: &Project) {
+fn write_lock(p: &Project, locked: bool) {
     let Some(fls) = read(&p.file("fls")) else { return };
     let local = local_tlpdb(&p.tl);
     let db = tlpdb::parse(&local);
@@ -243,6 +247,9 @@ fn write_lock(p: &Project) {
     let s = toml::to_string(&lock).unwrap_or_else(|e| die!("{e}"));
     let path = p.dir.join("texup.lock");
     if read(&path).as_deref() != Some(s.as_str()) {
+        if locked {
+            die!("texup.lock is out of date but --locked was passed; run texup build and commit texup.lock");
+        }
         fs::write(&path, s).unwrap_or_else(|e| die!("{e}"));
     }
 }
@@ -254,7 +261,10 @@ fn is_error_line(l: &str) -> bool {
         })
 }
 
-fn build(p: &Project) -> i32 {
+fn build(p: &Project, locked: bool) -> i32 {
+    if locked && !p.dir.join("texup.lock").exists() {
+        die!("--locked requires texup.lock; run texup build and commit it");
+    }
     fetch(p);
     let log = p.file("log");
     let mut remote = None;
@@ -269,10 +279,13 @@ fn build(p: &Project) -> i32 {
         rc = c.stdout(Stdio::null()).stderr(Stdio::null()).status().map_or_else(|e| die!("latexmk: {e}"), |s| s.code().unwrap_or(1));
         let mut new = Vec::new();
         for f in scan::missing(&read(&log).unwrap_or_default()) {
-            let db = remote.get_or_insert_with(|| remote_tlpdb(p));
+            let db = remote.get_or_insert_with(|| remote_tlpdb(p.year, &p.tl));
             match tlpdb::providers(db, &f).first() {
                 None => eprintln!("texup: no TeX Live {} package provides {f} (missing from the project?)", p.year),
                 Some(n) if tried.insert(n.to_string()) => {
+                    if locked {
+                        die!("missing {f} needs {n}, which texup.lock lacks; run texup build and commit texup.lock");
+                    }
                     println!("texup: missing {f} → installing {n}");
                     new.push(n.to_string());
                 }
@@ -285,7 +298,7 @@ fn build(p: &Project) -> i32 {
         tlmgr_install(&p.tl, new);
         g = true; // New packages do not change source timestamps.
     }
-    write_lock(p);
+    write_lock(p, locked);
     let pdf = p.file("pdf");
     if pdf.exists() {
         println!("texup: PDF → {}", pdf.display());
@@ -303,6 +316,38 @@ fn build(p: &Project) -> i32 {
         }
     }
     rc
+}
+
+fn why(p: &Project, pkg: &str) {
+    if BASE.contains(&pkg) {
+        println!("texup: {pkg} is always locked (needed to compile)");
+        return;
+    }
+    let fls = read(&p.file("fls")).unwrap_or_else(|| die!("no {}; run texup build first", p.file("fls").display()));
+    let db = tlpdb::parse(&local_tlpdb(&p.tl));
+    let d = db.iter().find(|d| d.name == pkg).unwrap_or_else(|| die!("{pkg} is not installed"));
+    let files: BTreeSet<_> = scan::tl_inputs(&fls).filter(|f| d.runfiles.iter().any(|r| r == f)).collect();
+    if files.is_empty() {
+        println!("texup: the last build read no files from {pkg}");
+    }
+    for f in files {
+        println!("{f}");
+    }
+}
+
+fn exec(args: &[String]) -> ! {
+    let Some(cmd) = args.first() else { die!("usage: texup exec <command> [args...]") };
+    let year = manifest(Path::new(".")).texlive.year;
+    let tl = ensure_tl(year);
+    let bin = tl.join(BIN).join(cmd);
+    if !bin.exists() {
+        let db = remote_tlpdb(year, &tl);
+        let pkg = tlpdb::bin_provider(&db, cmd).unwrap_or_else(|| die!("no TeX Live {year} package provides the command {cmd}"));
+        println!("texup: installing {pkg} for {cmd}");
+        tlmgr_install(&tl, [pkg]);
+    }
+    let e = tex(&tl, bin).args(&args[1..]).exec();
+    die!("{cmd}: {e}")
 }
 
 fn log_year(dir: &Path) -> Option<u32> {
@@ -329,35 +374,47 @@ fn init(dir: &str, year: Option<u32>) {
 
 const HELP: &str = "\
 texup init  [dir] [--year Y]  create texup.toml (year inferred from an existing .log)
-texup build [dir]             compile, installing missing packages and rerunning; writes texup.lock
+texup build [dir] [--locked]  compile, installing missing packages and rerunning; writes texup.lock
+                              (--locked: fail instead of changing texup.lock, e.g. in CI)
 texup watch [dir]             build, then keep watching with latexmk -pvc
 texup fetch [dir]             only install packages from texup.lock (e.g. before going offline)
 texup clean [dir]             latexmk -C
+texup why <package> [dir]     list the files from <package> the last build read
+texup exec <cmd> [args...]    run a TeX Live command of this project's year, installing it if needed
 cache: ${TEXUP_HOME:-~/.cache/texup}";
 
 fn main() {
-    let mut args = env::args().skip(1);
-    let cmd = args.next().unwrap_or_default();
-    let (mut dir, mut year) = (".".to_string(), None);
-    while let Some(a) = args.next() {
-        if a == "--year" {
-            year = Some(args.next().and_then(|y| y.parse().ok()).unwrap_or_else(|| die!("--year requires a year")));
-        } else {
-            dir = a;
+    let args: Vec<String> = env::args().skip(1).collect();
+    let cmd = args.first().map_or("", String::as_str);
+    if cmd == "exec" {
+        exec(&args[1..]);
+    }
+    let (mut pos, mut year, mut locked) = (Vec::new(), None, false);
+    let mut it = args.iter().skip(1);
+    while let Some(a) = it.next() {
+        match a.as_str() {
+            "--year" => year = Some(it.next().and_then(|y| y.parse().ok()).unwrap_or_else(|| die!("--year requires a year"))),
+            "--locked" => locked = true,
+            _ => pos.push(a.as_str()),
         }
     }
-    match cmd.as_str() {
-        "init" => init(&dir, year),
-        "build" => exit(build(&setup(&dir))),
-        "fetch" => fetch(&setup(&dir)),
+    let dir = pos.first().copied().unwrap_or(".");
+    match cmd {
+        "init" => init(dir, year),
+        "build" => exit(build(&setup(dir), locked)),
+        "fetch" => fetch(&setup(dir)),
+        "why" => {
+            let pkg = pos.first().unwrap_or_else(|| die!("usage: texup why <package> [dir]"));
+            why(&setup(pos.get(1).copied().unwrap_or(".")), pkg);
+        }
         "watch" => {
-            let p = setup(&dir);
-            build(&p);
+            let p = setup(dir);
+            build(&p, false);
             let e = tex(&p.tl, "latexmk").current_dir(&p.dir).arg("-pvc").args(LATEXMK).arg(&p.main).exec();
             die!("latexmk: {e}");
         }
         "clean" => {
-            let p = setup(&dir);
+            let p = setup(dir);
             check(tex(&p.tl, "latexmk").current_dir(&p.dir).arg("-C").arg(&p.main));
         }
         _ => println!("{HELP}"),

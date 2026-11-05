@@ -8,7 +8,8 @@ principles and verified TeX Live behavior. Read it before changing related logic
 - `src/main.rs`: CLI, manifest and lockfile handling, TeX Live installation
   (`install-tl` / `tlmgr`), and the build loop that installs missing packages.
 - `src/tlpdb.rs`: `texlive.tlpdb` parsing; filename-to-provider lookup with
-  `*-dev` packages ranked last; full-path-to-package lookup.
+  `*-dev` packages ranked last; full-path-to-package lookup; command-to-package
+  lookup for `texup exec`.
 - `src/scan.rs`: missing-file detection from `.log` and extraction of TeX Live
   files actually read from `.fls`.
 - `tests/fixtures/`: excerpts from real tlpdb, log, and `.fls` files.
@@ -113,8 +114,12 @@ reason for keeping a lockfile.
   `<tl>/tlpkg/texlive.tlpdb`.
 - Records are separated by blank lines. Indented file entries belong to the
   preceding `runfiles`, `docfiles`, `srcfiles`, or `binfiles` section. Read only
-  `runfiles`; `srcfiles` may appear before it. Normalize the remote `RELOC/`
-  prefix and the local `texmf-dist/` prefix to `texmf-dist/`.
+  `runfiles` and `binfiles`; `srcfiles` may appear before them. Normalize the
+  remote `RELOC/` prefix and the local `texmf-dist/` prefix to `texmf-dist/`.
+- Executables are `binfiles` (`bin/x86_64-linux/<cmd>`) of a separate
+  `<pkg>.x86_64-linux` record, and command names often differ from package
+  names (`latexdiff-vc` → `latexdiff`). `tlmgr install <pkg>` pulls in the
+  arch package.
 - Do not use `tlmgr search --global --file`: it downloads the remote index on
   every invocation and is slow.
 - Use the local tlpdb to map `.fls` inputs to packages, since it describes the
