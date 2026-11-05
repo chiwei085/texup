@@ -1,0 +1,109 @@
+name amsfonts
+category Package
+revision 61937
+shortdesc TeX fonts from the American Mathematical Society
+relocated 1
+execute addMap      euler.map
+execute addMixedMap cm.map
+execute addMixedMap cmextra.map
+execute addMixedMap cyrillic.map
+execute addMixedMap latxfont.map
+execute addMixedMap symbols.map
+containersize 3626268
+doccontainersize 1162540
+docfiles size=321
+ RELOC/doc/fonts/amsfonts/OFL-FAQ.txt
+ RELOC/doc/fonts/amsfonts/OFL.txt
+ RELOC/doc/fonts/amsfonts/README details="Package readme"
+srccontainersize 49156
+srcfiles size=55
+ RELOC/source/latex/amsfonts/amsfndoc.cyr
+ RELOC/source/latex/amsfonts/amsfndoc.def
+ RELOC/source/latex/amsfonts/amsfndoc.fnt
+runfiles size=1879
+ RELOC/fonts/afm/public/amsfonts/cm/cmb10.afm
+ RELOC/fonts/afm/public/amsfonts/cm/cmbsy10.afm
+ RELOC/fonts/afm/public/amsfonts/cm/cmbx10.afm
+ RELOC/fonts/type1/public/amsfonts/cm/cmr12.pfb
+catalogue-contact-home http://www.ams.org/arc/resources/amsfonts-about.html
+catalogue-ctan /fonts/amsfonts
+catalogue-license ofl
+catalogue-topics font font-maths font-symbol-maths font-bbd font-type1 font-mf
+catalogue-version 3.04
+
+name ec
+category Package
+revision 25033
+shortdesc Computer modern fonts in T1 and TS1 encodings
+relocated 1
+containersize 263716
+doccontainersize 22856
+docfiles size=29
+ RELOC/doc/fonts/ec/00bugs.txt
+ RELOC/doc/fonts/ec/00error.txt
+ RELOC/doc/fonts/ec/00files.txt
+runfiles size=1445
+ RELOC/fonts/source/jknappen/ec/ecbi.mf
+ RELOC/fonts/source/jknappen/ec/ecbi0500.mf
+ RELOC/fonts/source/jknappen/ec/ecbi0600.mf
+ RELOC/fonts/tfm/jknappen/ec/tcrm1200.tfm
+catalogue-also eco
+catalogue-ctan /fonts/ec
+catalogue-license other-free
+catalogue-topics font font-mf font-serif font-sans font-proportional font-mono font-cm
+catalogue-version 1.0
+
+name latex-tools-dev
+category Package
+revision 69872
+shortdesc Development pre-release of the LaTeX tools bundle
+relocated 1
+containersize 44676
+doccontainersize 5704792
+docfiles size=1846
+ RELOC/doc/latex-dev/tools/README.md details="Readme"
+ RELOC/doc/latex-dev/tools/afterpage.pdf
+ RELOC/doc/latex-dev/tools/array.pdf
+srccontainersize 234464
+srcfiles size=276
+ RELOC/source/latex-dev/tools/afterpage.dtx
+ RELOC/source/latex-dev/tools/afterpage.ins
+ RELOC/source/latex-dev/tools/array.dtx
+runfiles size=125
+ RELOC/tex/latex-dev/tools/.tex
+ RELOC/tex/latex-dev/tools/afterpage.sty
+ RELOC/tex/latex-dev/tools/array-2016-10-06.sty
+ RELOC/tex/latex-dev/tools/array.sty
+ RELOC/tex/latex-dev/tools/delarray.sty
+catalogue-ctan /macros/latex-dev/required/tools
+catalogue-license lppl1.3c
+catalogue-topics collection latex-devel
+catalogue-version 2024-06-01 pre-release 1
+
+name tools
+category Package
+revision 68941
+catalogue latex-tools
+shortdesc The LaTeX standard tools bundle
+relocated 1
+containersize 43420
+doccontainersize 5316304
+docfiles size=1766
+ RELOC/doc/latex/tools/README.md details="Readme"
+ RELOC/doc/latex/tools/afterpage.pdf
+ RELOC/doc/latex/tools/array.pdf
+srccontainersize 229424
+srcfiles size=270
+ RELOC/source/latex/tools/afterpage.dtx
+ RELOC/source/latex/tools/afterpage.ins
+ RELOC/source/latex/tools/array.dtx
+runfiles size=121
+ RELOC/tex/latex/tools/.tex
+ RELOC/tex/latex/tools/afterpage.sty
+ RELOC/tex/latex/tools/array-2016-10-06.sty
+ RELOC/tex/latex/tools/array.sty
+ RELOC/tex/latex/tools/delarray.sty
+catalogue-ctan /macros/latex/required/tools
+catalogue-license lppl1.3c
+catalogue-topics collection
+catalogue-version 2023-11-01c

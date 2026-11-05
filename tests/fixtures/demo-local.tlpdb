@@ -1,0 +1,283 @@
+name 00texlive.config
+
+name 00texlive.installation
+
+name amsfonts
+revision 77677
+runfiles size=1879
+ texmf-dist/fonts/afm/public/amsfonts/cm/cmb10.afm
+ texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb
+
+name arphic
+revision 15878
+runfiles size=8706
+ texmf-dist/dvips/arphic/config.bkaiu
+ texmf-dist/fonts/tfm/arphic/bkaiu/bkaiu30.tfm
+ texmf-dist/fonts/tfm/arphic/bkaiu/bkaiu4e.tfm
+ texmf-dist/fonts/tfm/arphic/bkaiu/bkaiu75.tfm
+ texmf-dist/fonts/type1/arphic/bkaiu/bkaiu30.pfb
+ texmf-dist/fonts/type1/arphic/bkaiu/bkaiu4e.pfb
+ texmf-dist/fonts/type1/arphic/bkaiu/bkaiu75.pfb
+
+name babel
+revision 77821
+runfiles size=1364
+ texmf-dist/makeindex/babel/bbglo.ist
+
+name bibtex
+revision 77677
+runfiles size=51
+ texmf-dist/bibtex/bib/base/xampl.bib
+
+name bibtex.x86_64-linux
+revision 74121
+ bin/x86_64-linux/bibtex
+
+name cjk
+revision 60865
+runfiles size=295
+ texmf-dist/tex/latex/cjk/contrib/wadalab/c42goth.fd
+ texmf-dist/tex/latex/cjk/texinput/CJK.enc
+ texmf-dist/tex/latex/cjk/texinput/CJK.sty
+ texmf-dist/tex/latex/cjk/texinput/CJKutf8.sty
+ texmf-dist/tex/latex/cjk/texinput/UTF8/UTF8.bdg
+ texmf-dist/tex/latex/cjk/texinput/UTF8/UTF8.chr
+ texmf-dist/tex/latex/cjk/texinput/UTF8/UTF8.enc
+ texmf-dist/tex/latex/cjk/texinput/UTF8/c70bkai.fd
+ texmf-dist/tex/latex/cjk/texinput/UTF8/c70bkai.fdx
+ texmf-dist/tex/latex/cjk/texinput/mule/MULEenc.sty
+
+name cm
+revision 57963
+runfiles size=340
+ texmf-dist/fonts/map/dvips/cm/cmtext-bsr-interpolated.map
+ texmf-dist/fonts/tfm/public/cm/cmr12.tfm
+
+name cns
+revision 45677
+runfiles size=2650
+ texmf-dist/fonts/misc/cns/4040w0.bin
+
+name dehyph
+revision 48599
+runfiles size=57
+ texmf-dist/tex/generic/dehyph/README
+
+name etex
+revision 73850
+runfiles size=11
+ texmf-dist/fonts/source/public/etex/xbmc10.mf
+
+name firstaid
+revision 76740
+runfiles size=6
+ texmf-dist/tex/latex/firstaid/filehook-ltx.sty
+
+name fonts-tlwg
+revision 60817
+runfiles size=2331
+ texmf-dist/fonts/afm/public/fonts-tlwg/garuda.afm
+
+name garuda-c90
+revision 60832
+runfiles size=6
+ texmf-dist/dvips/garuda-c90/config.garuda-c90
+
+name graphics
+revision 75374
+runfiles size=36
+ texmf-dist/tex/latex/graphics/color.sty
+
+name graphics-cfg
+revision 41448
+runfiles size=2
+ texmf-dist/tex/latex/graphics-cfg/color.cfg
+
+name graphics-def
+revision 76719
+runfiles size=23
+ texmf-dist/tex/latex/graphics-def/dvipdfmx.def
+
+name hyph-utf8
+revision 74823
+runfiles size=25
+ texmf-dist/tex/generic/hyph-utf8/conversions/conv-utf8-ec.tex
+
+name hyphen-base
+revision 74125
+runfiles size=24
+ texmf-dist/tex/generic/config/language.dat
+
+name iftex
+revision 77677
+runfiles size=7
+ texmf-dist/tex/generic/iftex/ifetex.sty
+ texmf-dist/tex/generic/iftex/ifpdf.sty
+ texmf-dist/tex/generic/iftex/iftex.sty
+
+name knuth-lib
+revision 57963
+runfiles size=47
+ texmf-dist/fonts/source/public/knuth-lib/3test.mf
+
+name kpathsea
+revision 75425
+runfiles size=53
+ texmf-dist/web2c/amiga-pl.tcx
+ texmf-dist/web2c/texmf.cnf
+
+name kpathsea.x86_64-linux
+revision 74121
+ bin/x86_64-linux/kpseaccess
+
+name l3backend
+revision 76924
+runfiles size=51
+ texmf-dist/dvips/l3backend/l3backend-dvips.pro
+ texmf-dist/tex/latex/l3backend/l3backend-pdftex.def
+
+name l3kernel
+revision 77438
+runfiles size=388
+ texmf-dist/tex/latex/l3kernel/expl3-code.tex
+
+name latex
+revision 76924
+runfiles size=776
+ texmf-dist/makeindex/latex/gglo.ist
+ texmf-dist/tex/latex/base/article.cls
+ texmf-dist/tex/latex/base/fontenc.sty
+ texmf-dist/tex/latex/base/inputenc.sty
+ texmf-dist/tex/latex/base/size12.clo
+
+name latex-bin
+revision 77033
+
+name latex-bin.x86_64-linux
+revision 54018
+ bin/x86_64-linux/dvilualatex
+
+name latex-fonts
+revision 28888
+runfiles size=61
+ texmf-dist/fonts/source/public/latex-fonts/circle.mf
+
+name latexconfig
+revision 68923
+runfiles size=2
+ texmf-dist/tex/latex/latexconfig/epstopdf-sys.cfg
+
+name latexmk
+revision 75540
+runfiles size=134
+ texmf-dist/scripts/latexmk/latexmk.pl
+
+name latexmk.x86_64-linux
+revision 10937
+ bin/x86_64-linux/latexmk
+
+name lm
+revision 77677
+runfiles size=10645
+ texmf-dist/fonts/afm/public/lm/lmb10.afm
+
+name lua-alt-getopt
+revision 56414
+runfiles size=1
+ texmf-dist/scripts/lua-alt-getopt/alt_getopt.lua
+
+name lua-uni-algos
+revision 76195
+runfiles size=20
+ texmf-dist/tex/luatex/lua-uni-algos/lua-uni-algos.lua
+
+name luahbtex
+revision 73848
+
+name luahbtex.x86_64-linux
+revision 74669
+ bin/x86_64-linux/luahbtex
+
+name lualibs
+revision 67994
+runfiles size=212
+ texmf-dist/tex/luatex/lualibs/lualibs-basic-merged.lua
+
+name luaotfload
+revision 74324
+runfiles size=1916
+ texmf-dist/scripts/luaotfload/luaotfload-tool.lua
+
+name luaotfload.x86_64-linux
+revision 34647
+ bin/x86_64-linux/luaotfload-tool
+
+name luatex
+revision 76924
+runfiles size=33
+ texmf-dist/tex/generic/config/luatex-unicode-letters.tex
+
+name luatex.x86_64-linux
+revision 74669
+ bin/x86_64-linux/dviluatex
+
+name norasi-c90
+revision 60831
+runfiles size=10
+ texmf-dist/dvips/norasi-c90/config.norasi-c90
+
+name pdftex
+revision 74113
+runfiles size=68
+ texmf-dist/fonts/map/dvips/dummy-space/dummy-space.map
+
+name pdftex.x86_64-linux
+revision 75248
+ bin/x86_64-linux/etex
+
+name plain
+revision 75712
+runfiles size=40
+ texmf-dist/makeindex/plain/plaintex.ist
+
+name scheme-infraonly
+revision 54191
+
+name tex-ini-files
+revision 73863
+runfiles size=15
+ texmf-dist/tex/generic/tex-ini-files/dviluatex.ini
+
+name texlive-scripts
+revision 78221
+runfiles size=164
+ install-tl
+
+name texlive-scripts.x86_64-linux
+revision 64356
+ bin/x86_64-linux/fmtutil
+
+name texlive.infra
+revision 76780
+runfiles size=344
+ LICENSE.CTAN
+
+name texlive.infra.x86_64-linux
+revision 70811
+ bin/x86_64-linux/mktexlsr
+
+name uhc
+revision 16791
+runfiles size=4177
+ texmf-dist/dvips/uhc/config.uhc
+
+name unicode-data
+revision 76413
+runfiles size=873
+ texmf-dist/tex/generic/unicode-data/BidiBrackets.txt
+
+name wadalab
+revision 42428
+runfiles size=6262
+ texmf-dist/fonts/afm/wadalab/dgj/dgjgreek.afm
+
