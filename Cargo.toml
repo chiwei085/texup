@@ -1,6 +1,6 @@
 [package]
 name = "texup"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 rust-version = "1.89"
 description = "Cargo-like TeX Live management for LaTeX projects: per-project year, lockfile, on-demand packages"
