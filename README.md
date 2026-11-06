@@ -174,14 +174,14 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/cache@v4
+      - uses: actions/checkout@v7
+      - uses: actions/cache@v6
         with:
           path: ~/.cache/texup
           key: texup-${{ hashFiles('texup.toml', 'texup.lock') }}
       - run: cargo install --git https://github.com/chiwei085/texup
       - run: texup build --locked
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: pdf
           path: "*.pdf"
