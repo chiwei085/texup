@@ -224,7 +224,8 @@ fn setup(dir: &str) -> Project {
     let (flag, engine) = match m.build.engine.as_deref().unwrap_or("pdflatex") {
         "pdflatex" => ("-pdf", None),
         "xelatex" => ("-xelatex", Some("xetex")),
-        e => die!("unsupported engine {e} in texup.toml (use pdflatex or xelatex)"),
+        "lualatex" => ("-lualatex", None),
+        e => die!("unsupported engine {e} in texup.toml (use pdflatex, xelatex, or lualatex)"),
     };
     let base = BASE.into_iter().chain(engine).collect();
     let main = m.build.main.or_else(|| main_of(&dir)).unwrap_or_else(|| {
@@ -260,9 +261,13 @@ fn write_lock(p: &Project, locked: bool) {
     let Some(fls) = read(&p.file("fls")) else { return };
     let local = local_tlpdb(&p.tl);
     let db = tlpdb::parse(&local);
-    // .fls omits OpenType fonts; the .xdv names every font file XeTeX used.
-    let xdv = if p.flag == "-xelatex" { fs::read(p.file("xdv")).unwrap_or_default() } else { Vec::new() };
-    let fonts = scan::xdv_fonts(&xdv);
+    // .fls omits OpenType fonts. XeTeX's .xdv names every font file used; pdfTeX and
+    // LuaTeX list embedded fonts in the log.
+    let fonts = if p.flag == "-xelatex" {
+        scan::xdv_fonts(&fs::read(p.file("xdv")).unwrap_or_default())
+    } else {
+        scan::log_fonts(&read(&p.file("log")).unwrap_or_default())
+    };
     let prefix = format!("{}/", p.tl.display());
     for f in fonts.iter().filter(|f| !f.starts_with(&prefix)) {
         eprintln!("texup: note: {f} is not from TeX Live; Overleaf must provide it too");

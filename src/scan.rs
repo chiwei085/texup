@@ -4,17 +4,20 @@ fn is_name(c: char) -> bool {
     c.is_ascii_alphanumeric() || c == '_' || c == '-'
 }
 
-// `Font \x=<name> at 10pt not loadable: ...` → `<name>`.
+// `Font \x=<name> at 10pt not loadable: ...` → `<name>`. pdfTeX and XeTeX say
+// `Metric (TFM) file ... not found`, LuaTeX `metric data not found or bad`.
 fn unloadable(line: &str) -> Option<&str> {
-    let head = &line[..line.find(" not loadable: Metric (TFM)")?];
+    let head = &line[..line.find(" not loadable: ")?];
     Some(head.split(" at ").next().unwrap_or(head).split_once('=')?.1)
 }
 
-// XeTeX fonts requested by name (`="TeX Gyre Termes"`), which tlpdb cannot resolve directly.
+// Fonts requested by name, which tlpdb cannot resolve directly: XeTeX writes
+// `="TeX Gyre Termes"`, LuaTeX `=name:TeX Gyre Termes:mode=node;...`.
 pub fn missing_fonts(log: &str) -> BTreeSet<String> {
     log.lines()
         .filter_map(unloadable)
-        .filter_map(|n| n.strip_prefix('"')?.strip_suffix('"')?.split([':', '/']).next()) // drop `/OT:features`
+        .filter_map(|n| n.strip_prefix('"').and_then(|n| n.strip_suffix('"')).or_else(|| n.strip_prefix("name:")))
+        .filter_map(|n| n.split([':', '/']).next()) // drop `/OT` or `:features`
         .map(String::from)
         .collect()
 }
@@ -29,6 +32,17 @@ pub fn xdv_fonts(xdv: &[u8]) -> BTreeSet<String> {
             && p.starts_with('/')
             && p.contains("/fonts/")
         {
+            out.insert(p.to_string());
+        }
+    }
+    out
+}
+
+// Font files pdfTeX and LuaTeX embedded, listed as `</abs/path.otf>` before `Output written`.
+pub fn log_fonts(log: &str) -> BTreeSet<String> {
+    let mut out = BTreeSet::new();
+    for part in log.lines().filter(|l| l.starts_with("</")).flat_map(|l| l.split('<')) {
+        if let Some(p) = part.split('>').next().filter(|p| p.starts_with('/') && p.contains("/fonts/")) {
             out.insert(p.to_string());
         }
     }
@@ -90,6 +104,7 @@ mod tests {
         let want = [
             "cmr12.pfb",
             "tcrm1200.pfb",
+            "texgyrepagella-regular.otf",
             "texgyretermes-regular.otf",
             "zzfont.tfm",
             "zzfontb.tfm",
@@ -99,6 +114,15 @@ mod tests {
         assert_eq!(got.iter().map(String::as_str).collect::<Vec<_>>(), want);
         let fonts = missing_fonts(include_str!("../tests/fixtures/missing.log"));
         assert_eq!(fonts.into_iter().collect::<Vec<_>>(), ["TeX Gyre Termes"]);
+        let lua: String = include_str!("../tests/fixtures/missing.log").lines().filter(|l| l.contains("=name:")).collect();
+        assert_eq!(missing_fonts(&lua).into_iter().collect::<Vec<_>>(), ["TeX Gyre Termes"]);
+    }
+
+    #[test]
+    fn fonts_from_lualatex_log() {
+        let got = log_fonts(include_str!("../tests/fixtures/lualatex-tail.log"));
+        let names: Vec<_> = got.iter().map(|p| p.rsplit('/').next().unwrap()).collect();
+        assert_eq!(names, ["lmroman10-regular.otf", "NotoSerifCJK-Regular.ttc"]);
     }
 
     #[test]

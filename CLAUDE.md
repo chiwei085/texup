@@ -22,8 +22,7 @@ principles and verified TeX Live behavior. Read it before changing related logic
 - Out of scope: modifying TeX engines, FUSE or lazy filesystems, and reimplementing
   TeX Live installation semantics. Leave `.fmt` generation and `updmap` to
   `tlmgr`. These alternatives were evaluated and were not worth the complexity.
-- Support only x86_64 Linux, pdfLaTeX, and XeLaTeX. The `engine` field is
-  reserved for future LuaLaTeX support.
+- Support only x86_64 Linux, pdfLaTeX, XeLaTeX, and LuaLaTeX.
 - Keep dependencies limited to `serde` and `toml`. Use `curl`, `tar`, and `xz`
   directly for downloads and extraction.
 - **Do not generate `latexmkrc`:** Overleaf reads it.
@@ -123,12 +122,25 @@ reason for keeping a lockfile.
   k[4] size[4] flags[2] len[1] path); lock the TeX Live ones and note the rest.
 - Missing fonts: `Font ...=[file.otf]/OT at ... not loadable: Metric (TFM) file
   or installed font not found` maps to `file.otf`; `="Name"` has no tlpdb
-  mapping, so match the normalized name against OpenType/TrueType file name
-  prefixes (`TeX Gyre Termes` → `texgyretermes-regular.otf`).
+  mapping, so match the normalized name against the stem of OpenType/TrueType
+  file names before the first `-`, `.`, or `_` (`TeX Gyre Termes` →
+  `texgyretermes-regular.otf`). Require equality: `context` ships
+  `TeXGyreTermesMathCompanion-Regular.otf` and sorts before `tex-gyre`.
 - fontspec wraps its own info lines, so `<->"Font Name"` in the log is
   unreliable regardless of `max_print_line`.
 - Dependencies often pull in fonts: `xecjk` → `ctex` → `fandol`; `fontspec` →
   `lm`.
+
+### LuaLaTeX
+
+- `latex-bin` already builds the `lualatex` format; no extra engine package.
+- luaotfload keeps its own font database under `TEXMFVAR`, scans system fonts
+  itself, and rescans when a requested font is missing, so fonts installed by
+  `tlmgr` are found on the next run.
+- `.fls` records no fonts. Like pdfTeX, LuaTeX lists every embedded font file as
+  `</abs/path.otf>` on the line before `Output written`; lock fonts from there.
+- Missing fonts: `...=[file.otf]:mode=node;... at 10pt not loadable: metric data
+  not found or bad` (file) and `...=name:TeX Gyre Termes:mode=...` (name).
 
 ### tlpdb
 

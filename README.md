@@ -100,7 +100,7 @@ engine = "pdflatex"
 | --- | --- | --- |
 | `texlive.year` | Yes | — |
 | `build.main` | No | `main.tex` if it exists, otherwise the only top-level `.tex` file containing `\documentclass` |
-| `build.engine` | No | `pdflatex`; also `xelatex` (see [XeLaTeX](#xelatex)) |
+| `build.engine` | No | `pdflatex`; also `xelatex` or `lualatex` (see [XeLaTeX and LuaLaTeX](#xelatex-and-lualatex)) |
 
 ### `texup.lock`
 
@@ -180,11 +180,11 @@ The cache key changes with the lockfile, so each cache holds exactly the locked
 packages. For the current (rolling) year, an uncached run installs the latest
 revisions, and `--locked` fails if any differ from the lockfile.
 
-## XeLaTeX
+## XeLaTeX and LuaLaTeX
 
-Set `engine = "xelatex"` to match an Overleaf project compiled with XeLaTeX.
-fontspec finds fonts by name through fontconfig; texup points it at TeX Live's
-fonts plus your system fonts.
+Set `engine = "xelatex"` or `engine = "lualatex"` to match the compiler of the
+Overleaf project. fontspec can find fonts by name; texup makes TeX Live's fonts
+and your system fonts available to it.
 
 - TeX Live fonts are installed on demand like packages, whether loaded by file
   name (`\setmainfont{texgyretermes-regular.otf}`) or by name
@@ -214,7 +214,8 @@ keeps the full `tlmgr` output for troubleshooting.
 
 ## Limitations
 
-- Only x86_64 Linux, pdfLaTeX, and XeLaTeX are supported.
+- Only x86_64 Linux, pdfLaTeX, XeLaTeX, and LuaLaTeX are supported. Overleaf's
+  "LaTeX" compiler (DVI output) is not.
 - A file probed with `\IfFileExists` silently falls back when missing, so texup
   cannot detect it.
 - Missing Type 1 fonts are resolved by looking up `<font>.pfb`. EC/TC fonts such

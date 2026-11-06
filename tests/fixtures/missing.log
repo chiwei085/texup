@@ -33,3 +33,5 @@ l.1 ...t}\font\x=zzfont at 12pt \font\y=zzfontb \x
 !pdfTeX error: pdflatex (file tcrm1200): Font tcrm1200 at 600 not found
 ./main.tex:4: Font TU/TeXGyreTermes(0)/m/n/10="TeX Gyre Termes" at 10.0pt not loadable: Metric (TFM) file or installed font not found.
 ./main.tex:4: Font TU/texgyretermes-regular.otf(0)/m/n/10=[texgyretermes-regular.otf]/OT at 10.0pt not loadable: Metric (TFM) file or installed font not found.
+./main.tex:4: Font \TU/texgyrepagella-regular.otf(0)/m/n/10=[texgyrepagella-regular.otf]:mode=node;language=dflt;+tlig; at 10pt not loadable: metric data not found or bad.
+./main.tex:4: Font \TU/TeXGyreTermes(0)/m/n/10=name:TeX Gyre Termes:mode=node;language=dflt;+tlig; at 10pt not loadable: metric data not found or bad.
