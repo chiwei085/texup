@@ -39,16 +39,16 @@ Make sure `~/.local/bin` is on your `PATH`. To update, rerun the same commands.
 Each release also lists a `.sha256` checksum for every binary.
 
 texup compiles through [texweft](https://github.com/chiwei085/texweft), a build
-driver that reports results as structured messages. For now texweft must be
-installed separately and be on your `PATH` (texup stops with
-`texup: texweft not found on PATH` otherwise); texup will download it itself once
-texweft publishes release binaries:
+driver that reports results as structured messages. Install it the same way
+(texup stops with `texup: texweft not found on PATH` otherwise):
 
 ```bash
-cargo install --git https://github.com/chiwei085/texweft
+curl -fL -o ~/.local/bin/texweft \
+  "https://github.com/chiwei085/texweft/releases/latest/download/texweft-$(uname -m)-linux"
+chmod +x ~/.local/bin/texweft
 ```
 
-To build from source instead, install Rust 1.88 or later and run:
+To build from source instead, install Rust 1.89 or later and run:
 
 ```bash
 cargo install --git https://github.com/chiwei085/texup
@@ -264,8 +264,8 @@ keeps the full `tlmgr` output for troubleshooting.
 
 ## Limitations
 
-- Only x86_64 Linux, pdfLaTeX, XeLaTeX, and LuaLaTeX are supported. Overleaf's
-  "LaTeX" compiler (DVI output) is not.
+- Only x86_64 and aarch64 Linux, pdfLaTeX, XeLaTeX, and LuaLaTeX are supported.
+  Overleaf's "LaTeX" compiler (DVI output) is not.
 - A file probed with `\IfFileExists` silently falls back when missing, so texup
   cannot detect it.
 - Missing Type 1 fonts are resolved by looking up `<font>.pfb`. EC/TC fonts such

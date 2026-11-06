@@ -67,17 +67,20 @@ Preserve the following handling when changing related code.
   through `tex()`, which puts the TeX Live `bin` first on `PATH` and sets
   `max_print_line` and `FONTCONFIG_FILE` (XeLaTeX font lookup needs it).
   `--outdir .` keeps outputs next to the sources, where LaTeX Workshop's SyncTeX
-  and viewer settings, `texup why`, and existing projects expect them. Until
-  texweft ships release binaries, it must be on `PATH`; report a missing one as
-  `texup: texweft not found on PATH`.
+  and viewer settings, `texup why`, and existing projects expect them. texweft
+  must be on `PATH`; report a missing one as `texup: texweft not found on PATH`.
 - Map `missing.kind` to packages: `file` and `font-file` by file name,
   `font-name` by font name, `font-outline` by `<name>.pfb` (with the cm-super
   special case), `program` by command name. Install fatal entries and
   substituted outline fonts (`font-outline` with `substitute: "pk"`); ignore a
   `.bib` replaced by a shipped `.bbl`. `library` is a system library: print its
   raw loader line and stop.
-- No force flag is needed after installing: texweft keeps no state for a build
-  that did not converge and fingerprints `ls-R` and the font maps.
+- No force flag is needed after installing: texweft keeps no state for a
+  `missing` build, so the retry runs. It does reuse a `converged` build, and a
+  `failed` one the document caused, while every input it read is unchanged;
+  installing an outline font still triggers a rebuild, because updmap rewrites
+  `pdftex.map`, which the build read. `texweft watch` also rebuilds when `ls-R`
+  changes.
 - With a cold cache, each fatal error may reveal only one missing file. Do not
   cap the installation loop. Never retry the same package, so the loop always
   terminates.
@@ -95,8 +98,10 @@ Preserve the following handling when changing related code.
 - Do not rewrite an unchanged lockfile: doing so causes endless rebuilds with
   LaTeX Workshop's `onFileChange` setting.
 - `texup watch` reads `texweft watch`'s stream and installs what a build reports
-  missing; texweft rebuilds by itself once tlmgr rewrites `ls-R`. It opens no
-  viewer (latexmk -pvc did).
+  missing; texweft rebuilds by itself once tlmgr rewrites `ls-R`. tlmgr writes
+  `ls-R` before updmap and fmtutil, so installs hold texweft's output lock
+  (`.<job>.texweft.lock`, flock) and texweft waits. It opens no viewer
+  (latexmk -pvc did).
 
 ### Silent fallbacks
 
@@ -150,8 +155,9 @@ reason for keeping a lockfile.
 - luaotfload keeps its own font database under `TEXMFVAR`, scans system fonts
   itself, and rescans when a requested font is missing, so fonts installed by
   `tlmgr` are found on the next run.
-- `.fls` records no fonts. Like pdfTeX, LuaTeX lists every embedded font file as
-  `</abs/path.otf>` on the line before `Output written`; lock fonts from there.
+- A cold luaotfload database scan records unrelated outline fonts in `.fls`.
+  texweft must exclude those entries and report embedded fonts from the
+  `</abs/path.otf>` log lines, keeping cold and warm lockfiles identical.
 - Missing fonts: `...=[file.otf]:mode=node;... at 10pt not loadable: metric data
   not found or bad` (file) and `...=name:TeX Gyre Termes:mode=...` (name).
 
@@ -199,7 +205,8 @@ BibTeX, plus a minimal document.
 
 CI (`.github/workflows/ci.yml`) runs clippy and the tests, then builds
 `tests/e2e/<engine>/` with `--locked` on Ubuntu x86_64 and arm64 and in Debian,
-Fedora, and Arch containers, with texweft built from source. After changing those documents, regenerate their
+Fedora, and Arch containers, with texweft's release binary (pinned by version and
+sha256). After changing those documents, regenerate their
 `texup.lock` with an empty `TEXUP_HOME`.
 
 Releases: bump `version` in `Cargo.toml`, then push a `v<version>` tag.

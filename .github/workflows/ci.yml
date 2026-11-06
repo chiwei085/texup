@@ -45,14 +45,22 @@ jobs:
         run: ${{ matrix.deps }}
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
-      # texup compiles through texweft; build it from source until it publishes binaries.
-      # Pinned so a protocol change in texweft cannot change texup's CI; bump it deliberately.
-      - uses: actions/checkout@v7
-        with:
-          repository: chiwei085/texweft
-          ref: 05d6f555a20d770e8adf95c6575d432994a33e76
-          path: texweft
-      - run: cargo install --locked --path texweft
+      - name: Install texweft
+        shell: bash
+        env:
+          VERSION: v0.1.1
+          SHA256_x86_64: f375afae929a8311cffa929cca9b238140e24724a55ae12df75b03f6554ec8bf
+          SHA256_aarch64: 66ba1336326d066d9f002a40cb0e495b4fb7857c921db2c93eb82d785423d959
+        run: |
+          arch=$(uname -m)
+          sum_var="SHA256_$arch"
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL -o "$HOME/.local/bin/texweft" \
+            "https://github.com/chiwei085/texweft/releases/download/$VERSION/texweft-$arch-linux"
+          echo "${!sum_var}  $HOME/.local/bin/texweft" | sha256sum -c -
+          chmod +x "$HOME/.local/bin/texweft"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/texweft" --version
       - uses: actions/cache@v6
         with:
           path: ~/.cache/texup
@@ -61,6 +69,8 @@ jobs:
       - name: Build each engine with --locked
         shell: bash
         run: |
+          # A cold LuaTeX font database must not add unrelated packages to the lockfile.
+          rm -rf "$HOME/.cache/texup/tl/2025"/{texmf-var,home-var}/luatex-cache
           for e in pdflatex xelatex lualatex; do
             target/debug/texup build --locked "tests/e2e/$e"
             test -f "tests/e2e/$e/main.pdf"

@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fs;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Write};
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio, exit};
@@ -90,6 +90,10 @@ fn ok(c: &mut Command) -> bool {
     }
 }
 
+fn download(url: &str, dest: &Path) {
+    check(Command::new("curl").args(["-sSfL", "-o"]).arg(dest).arg(url));
+}
+
 fn bin(tl: &Path) -> PathBuf {
     tl.join("bin").join(PLATFORM)
 }
@@ -145,11 +149,15 @@ fn tlmgr_install<S: AsRef<std::ffi::OsStr>>(tl: &Path, pkgs: impl IntoIterator<I
 fn missing_library(output: &str) {
     let libs: BTreeSet<_> = output.lines().filter(|l| l.contains("error while loading shared libraries")).collect();
     if !libs.is_empty() {
-        for l in libs {
-            eprintln!("{l}");
-        }
-        die!("a TeX Live program cannot start; install the missing system library with your package manager and rerun");
+        library_missing(libs);
     }
+}
+
+fn library_missing<'a>(lines: impl IntoIterator<Item = &'a str>) -> ! {
+    for l in lines {
+        eprintln!("{l}");
+    }
+    die!("a TeX Live program cannot start; install the missing system library with your package manager and rerun");
 }
 
 fn local_tlpdb(tl: &Path) -> String {
@@ -174,7 +182,7 @@ fn ensure_tl(year: u32) -> PathBuf {
     let _ = fs::remove_dir_all(&part);
     fs::create_dir_all(&tmp).unwrap_or_else(|e| die!("{e}"));
     let tgz = tmp.join("install-tl.tar.gz");
-    check(Command::new("curl").args(["-sSfL", "-o"]).arg(&tgz).arg(format!("{repo}/install-tl-unx.tar.gz")));
+    download(&format!("{repo}/install-tl-unx.tar.gz"), &tgz);
     check(Command::new("tar").arg("xzf").arg(&tgz).arg("-C").arg(&tmp));
     let inst = fs::read_dir(&tmp)
         .unwrap_or_else(|e| die!("{e}"))
@@ -214,7 +222,7 @@ fn remote_tlpdb(year: u32, tl: &Path) -> Vec<tlpdb::Pkg> {
         fs::create_dir_all(&dir).unwrap_or_else(|e| die!("{e}"));
         let xz = path.with_extension("tlpdb.xz");
         let url = format!("{}/tlpkg/texlive.tlpdb.xz", repo_of(&local_tlpdb(tl)));
-        check(Command::new("curl").args(["-sSfL", "-o"]).arg(&xz).arg(url));
+        download(&url, &xz);
         check(Command::new("xz").arg("-df").arg(&xz));
     }
     // shortcut: rolling indexes stay cached; delete this file when package lookups become stale.
@@ -304,9 +312,8 @@ fn texweft_error(e: std::io::Error) -> ! {
 /// What one texweft build reported: the messages from `build-started` to `build-finished`.
 #[derive(Default)]
 struct Report {
-    /// `build-finished` arrived; without it the other fields describe nothing.
-    finished: bool,
-    outcome: String,
+    /// Set by `build-finished`; without it the other fields describe nothing.
+    outcome: Option<String>,
     preview: Option<String>,
     unsupported: Vec<Value>,
     missing: Vec<Value>,
@@ -334,9 +341,8 @@ impl Report {
                 self.programs = programs.filter_map(|p| p.as_str().map(String::from)).collect();
             }
             "build-finished" => {
-                self.outcome = m["outcome"].as_str().unwrap_or("").into();
+                self.outcome = Some(m["outcome"].as_str().unwrap_or("").into());
                 self.preview = m["preview"].as_str().map(String::from);
-                self.finished = true;
                 return true;
             }
             _ => {}
@@ -345,16 +351,26 @@ impl Report {
     }
 }
 
+/// tlmgr writes ls-R before running updmap and fmtutil, and texweft rebuilds on the ls-R change.
+/// Holding texweft's output lock (same flock, our pid for its lock-wait message) makes it wait.
+fn install(p: &Project, pkgs: Vec<String>) {
+    let stem = Path::new(&p.main).file_stem().unwrap_or_default().to_string_lossy();
+    // texweft resolves `--outdir .` against the main file's directory.
+    let path = p.dir.join(&p.main).with_file_name(format!(".{stem}.texweft.lock"));
+    // Truncate only once locked: the holder's pid is in the file until then.
+    let locked = fs::OpenOptions::new().write(true).create(true).truncate(false).open(&path).and_then(|f| f.lock().map(|_| f));
+    let mut f = locked.unwrap_or_else(|e| die!("{}: {e}", path.display()));
+    let _ = f.set_len(0).and_then(|_| write!(f, "{}", std::process::id()));
+    tlmgr_install(&p.tl, pkgs);
+}
+
 /// Packages that provide what the build reported missing and were not tried yet. Fatal
 /// entries end the build; a substituted outline font (PK bitmap, Type 3 in the PDF) is a
 /// silent fallback worth fixing too. A shipped `.bbl` standing in for a `.bib` is not.
 fn to_install(p: &Project, remote: &mut Option<Vec<tlpdb::Pkg>>, r: &Report, tried: &mut HashSet<String>, locked: bool) -> Vec<String> {
     let wanted: Vec<&Value> = r.missing.iter().filter(|m| m["fatal"] == true || m["kind"] == "font-outline").collect();
     if let Some(lib) = wanted.iter().find(|m| m["kind"] == "library") {
-        for l in lib["raw"].as_array().into_iter().flatten().filter_map(Value::as_str) {
-            eprintln!("{l}");
-        }
-        die!("a TeX Live program cannot start; install the missing system library with your package manager and rerun");
+        library_missing(lib["raw"].as_array().into_iter().flatten().filter_map(Value::as_str));
     }
     if wanted.is_empty() {
         return Vec::new();
@@ -406,7 +422,7 @@ fn write_lock(p: &Project, r: &Report, locked: bool) {
             eprintln!("texup: note: {f} is not from TeX Live; Overleaf must provide it too");
         }
     }
-    let mut pkgs = tlpdb::owners(&db, r.inputs.iter().filter_map(|(f, _)| f.find("/texmf-dist/").map(|i| &f[i + 1..])));
+    let mut pkgs = tlpdb::owners(&db, r.inputs.iter().filter_map(|(f, _)| scan::tl_path(f)));
     for d in db.iter().filter(|d| p.base.contains(&d.name.as_str())) {
         pkgs.insert(&d.name, d.revision);
     }
@@ -436,7 +452,8 @@ fn report(p: &Project, r: &Report) {
     if let Some(pdf) = &r.preview {
         println!("texup: PDF → {pdf}");
     }
-    if r.outcome == "converged" {
+    let outcome = r.outcome.as_deref().unwrap_or("");
+    if outcome == "converged" {
         return;
     }
     for u in &r.unsupported {
@@ -444,7 +461,7 @@ fn report(p: &Project, r: &Report) {
     }
     let overleaf = if r.preview.is_some() { " (Overleaf would still produce a PDF)" } else { "" };
     let colon = if r.errors.is_empty() { "" } else { "; errors:" };
-    eprintln!("texup: build {}{overleaf}{colon}", r.outcome);
+    eprintln!("texup: build {outcome}{overleaf}{colon}");
     let line = |e: &Value| {
         let file = e["span"]["file"].as_str().map(|f| Path::new(f).strip_prefix(&p.dir).map_or(f.into(), |r| r.display().to_string()));
         match (file, e["span"]["line"].as_u64()) {
@@ -457,8 +474,13 @@ fn report(p: &Project, r: &Report) {
     }
 }
 
-fn messages(out: &[u8]) -> impl Iterator<Item = Value> + '_ {
-    out.split(|b| *b == b'\n').filter(|l| !l.is_empty()).filter_map(|l| serde_json::from_slice(l).ok())
+/// A crash, or an older texweft rejecting an option (usage, exit 2), reports no result.
+fn no_result(status: Option<i32>) -> ! {
+    die!("texweft exited without a result (status {})", status.map_or("killed".into(), |c| c.to_string()))
+}
+
+fn messages(out: impl BufRead) -> impl Iterator<Item = Value> {
+    out.lines().map_while(Result::ok).filter_map(|l| serde_json::from_str(&l).ok())
 }
 
 fn build(p: &Project, locked: bool) -> i32 {
@@ -473,22 +495,21 @@ fn build(p: &Project, locked: bool) -> i32 {
     let r = loop {
         let out = texweft(p, "build").stderr(Stdio::inherit()).output().unwrap_or_else(|e| texweft_error(e));
         let mut r = Report::default();
-        for m in messages(&out.stdout) {
+        for m in messages(&out.stdout[..]) {
             r.take(m);
         }
-        // A crash, or an older texweft rejecting an option (usage, exit 2), reports no result.
-        if !r.finished {
-            die!("texweft exited without a result (status {})", out.status.code().map_or("killed".into(), |c| c.to_string()));
+        if r.outcome.is_none() {
+            no_result(out.status.code());
         }
         let new = to_install(p, &mut remote, &r, &mut tried, locked);
         if new.is_empty() {
             break r;
         }
-        tlmgr_install(&p.tl, new);
+        install(p, new);
     };
     write_lock(p, &r, locked);
     report(p, &r);
-    if r.outcome == "converged" { 0 } else { 1 }
+    if r.outcome.as_deref() == Some("converged") { 0 } else { 1 }
 }
 
 /// Builds on every change, installing what a build reports missing. texweft watches ls-R, which
@@ -509,12 +530,12 @@ fn watch(p: &Project) -> ! {
             write_lock(p, &r, false);
             report(p, &r);
         } else {
-            tlmgr_install(&p.tl, new);
+            install(p, new);
         }
     }
     let status = child.wait().ok().and_then(|s| s.code());
-    if !r.finished && status != Some(0) {
-        die!("texweft exited without a result (status {})", status.map_or("killed".into(), |c| c.to_string()));
+    if r.outcome.is_none() && status != Some(0) {
+        no_result(status);
     }
     exit(status.unwrap_or(1))
 }

@@ -1,10 +1,12 @@
-// TeX Live files a build read, from its `.fls`, for `texup why`. Missing-file detection and font
-// discovery now come from texweft's messages.
+// TeX Live files a build read, from its `.fls`, for `texup why`.
+
+/// An absolute path as tlpdb names it (`texmf-dist/...`), if it is in a TeX Live tree.
+pub fn tl_path(p: &str) -> Option<&str> {
+    p.find("/texmf-dist/").map(|i| &p[i + 1..])
+}
 
 pub fn tl_inputs(fls: &str) -> impl Iterator<Item = &str> {
-    fls.lines()
-        .filter_map(|l| l.strip_prefix("INPUT /"))
-        .filter_map(|p| p.find("/texmf-dist/").map(|i| &p[i + 1..]))
+    fls.lines().filter_map(|l| l.strip_prefix("INPUT /")).filter_map(tl_path)
 }
 
 #[cfg(test)]

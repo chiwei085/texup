@@ -40,12 +40,8 @@ pub fn parse(text: &str) -> Vec<Pkg> {
 
 pub fn providers<'a>(pkgs: &'a [Pkg], file: &str) -> Vec<&'a str> {
     let suffix = format!("/{file}");
-    let (mut v, mut dev): (Vec<&str>, Vec<&str>) = pkgs
-        .iter()
-        .filter(|p| p.runfiles.iter().any(|f| f.ends_with(&suffix)))
-        .map(|p| p.name.as_str())
-        .partition(|n| !n.ends_with("-dev"));
-    v.append(&mut dev);
+    let mut v: Vec<&str> = pkgs.iter().filter(|p| p.runfiles.iter().any(|f| f.ends_with(&suffix))).map(|p| p.name.as_str()).collect();
+    v.sort_by_key(|n| n.ends_with("-dev"));
     // shortcut: EC/TC font aliases are absent from tlpdb; parse .map files when other aliases are needed.
     if v.is_empty() && file.ends_with(".pfb") && (file.starts_with("ec") || file.starts_with("tc")) {
         v.push("cm-super");
