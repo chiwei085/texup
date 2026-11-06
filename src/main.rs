@@ -457,6 +457,7 @@ texup fetch [dir]             only install packages from texup.lock (e.g. before
 texup clean [dir]             latexmk -C
 texup why <package> [dir]     list the files from <package> the last build read
 texup exec <cmd> [args...]    run a TeX Live command of this project's year, installing it if needed
+texup --version               print the texup version
 cache: ${TEXUP_HOME:-~/.cache/texup}";
 
 fn main() {
@@ -476,6 +477,7 @@ fn main() {
     }
     let dir = pos.first().copied().unwrap_or(".");
     match cmd {
+        "--version" | "-V" => println!("texup {}", env!("CARGO_PKG_VERSION")),
         "init" => init(dir, year),
         "build" => exit(build(&setup(dir), locked)),
         "fetch" => fetch(&setup(dir)),

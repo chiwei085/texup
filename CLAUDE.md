@@ -192,6 +192,13 @@ CI (`.github/workflows/ci.yml`) runs clippy and the tests, then builds
 Fedora, and Arch containers. After changing those documents, regenerate their
 `texup.lock` with an empty `TEXUP_HOME`.
 
+Releases: bump `version` in `Cargo.toml`, then push a `v<version>` tag.
+`.github/workflows/release.yml` builds `texup-<platform>` binaries on
+`ubuntu-22.04` and `ubuntu-22.04-arm` (oldest runners, so the binaries need only
+glibc 2.35, as the README states) and attaches them to a draft release; write
+the notes and publish it. Run the workflow manually to check the binaries
+without releasing.
+
 ### Linux dependencies
 
 - texup needs `perl`, `curl`, `tar`, and `xz`; report a missing one by name.

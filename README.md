@@ -10,10 +10,10 @@ installing all of TeX Live.
 
 ## Installation
 
-Requires x86_64 or aarch64 Linux (glibc) with `perl`, `curl`, `tar`, `xz`, and,
-for XeLaTeX, the fontconfig library, plus Rust 1.88 or later. No existing TeX
-installation is needed. Desktop installations usually have all of these; on a
-minimal system:
+Requires x86_64 or aarch64 Linux with glibc 2.35 or later (Ubuntu 22.04,
+Debian 12, Fedora 36, or newer), plus `perl`, `curl`, `tar`, `xz`, and, for
+XeLaTeX, the fontconfig library. No existing TeX installation is needed. Desktop
+installations usually have all of these; on a minimal system:
 
 | Distribution | Command |
 | --- | --- |
@@ -24,12 +24,28 @@ minimal system:
 CI builds a pdfLaTeX, XeLaTeX, and LuaLaTeX document on each of these, on both
 x86_64 and arm64 Ubuntu.
 
+Download the binary for your machine from the
+[latest release](https://github.com/chiwei085/texup/releases/latest):
+
+```bash
+mkdir -p ~/.local/bin
+curl -fL -o ~/.local/bin/texup \
+  "https://github.com/chiwei085/texup/releases/latest/download/texup-$(uname -m)-linux"
+chmod +x ~/.local/bin/texup
+texup --version
+```
+
+Make sure `~/.local/bin` is on your `PATH`. To update, rerun the same commands.
+Each release also lists a `.sha256` checksum for every binary.
+
+To build from source instead, install Rust 1.88 or later and run:
+
 ```bash
 cargo install --git https://github.com/chiwei085/texup
 ```
 
-This installs `texup` to `~/.cargo/bin`; make sure that directory is on your
-`PATH`. To update, rerun the command with `--force`.
+This installs `texup` to `~/.cargo/bin`; to update, rerun the command with
+`--force`.
 
 ## Quick start
 
@@ -59,6 +75,7 @@ Every command takes an optional project directory, defaulting to the current one
 | `texup clean [dir]` | Remove build artifacts with `latexmk -C`. |
 | `texup why <package> [dir]` | List the files from `<package>` that the last build read, i.e. why it is in `texup.lock`. |
 | `texup exec <cmd> [args…]` | Run a TeX Live command from the project's year, installing its package first if needed. Runs in the current directory. |
+| `texup --version` | Print the texup version. |
 
 `texup exec` gives access to any TeX Live tool without a system-wide install,
 for example:
@@ -158,8 +175,9 @@ Let texup compile and LaTeX Workshop preview. Add this to your VS Code settings:
 ```
 
 The recipe succeeds whenever a PDF exists, so bibliography errors do not block
-the preview. If VS Code was not started from a shell, `~/.cargo/bin` may be
-missing from its `PATH`; use the absolute path to `texup` instead.
+the preview. If VS Code was not started from a shell, `~/.local/bin` or
+`~/.cargo/bin` may be missing from its `PATH`; use the absolute path to `texup`
+instead.
 
 ## CI
 
@@ -179,8 +197,10 @@ jobs:
         with:
           path: ~/.cache/texup
           key: texup-${{ hashFiles('texup.toml', 'texup.lock') }}
-      - run: cargo install --git https://github.com/chiwei085/texup
-      - run: texup build --locked
+      - run: |
+          curl -fsSL -o texup https://github.com/chiwei085/texup/releases/latest/download/texup-x86_64-linux
+          chmod +x texup
+      - run: ./texup build --locked
       - uses: actions/upload-artifact@v7
         with:
           name: pdf
