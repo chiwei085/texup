@@ -11,9 +11,10 @@ installing all of TeX Live.
 ## Installation
 
 Requires x86_64 or aarch64 Linux with glibc 2.35 or later (Ubuntu 22.04,
-Debian 12, Fedora 36, or newer), plus `perl`, `curl`, `tar`, `xz`, and, for
+Debian 12, Fedora 36, or newer), [texweft](https://github.com/chiwei085/texweft)
+0.1.1 or later (installed below), plus `perl`, `curl`, `tar`, `xz`, and, for
 XeLaTeX, the fontconfig library. No existing TeX installation is needed. Desktop
-installations usually have all of these; on a minimal system:
+installations usually have the system packages; on a minimal system:
 
 | Distribution | Command |
 | --- | --- |
@@ -166,7 +167,7 @@ revision = 68941
 - Overleaf ignores `texup.toml` and `texup.lock`.
 - texup never creates a `latexmkrc`, which Overleaf would pick up.
 - Besides the usual auxiliary files, a build leaves `<main>.texweft.json`
-  (texweft's record of the last successful build) and `.<main>.texweft.lock`
+  (texweft's record of the last build) and `.<main>.texweft.lock`
   next to the sources. Like `.aux` and `.log`, keep them out of git and out of
   uploads to Overleaf:
 
