@@ -1,2 +1,7 @@
 /target
 /tests/baseline/
+/tests/e2e/*/*
+!/tests/e2e/*/main.tex
+!/tests/e2e/*/refs.bib
+!/tests/e2e/*/texup.toml
+!/tests/e2e/*/texup.lock

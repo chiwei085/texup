@@ -10,8 +10,19 @@ installing all of TeX Live.
 
 ## Installation
 
-Requires x86_64 Linux with `perl`, `curl`, `tar`, and `xz`, plus Rust 1.88 or
-later. No existing TeX installation is needed.
+Requires x86_64 or aarch64 Linux (glibc) with `perl`, `curl`, `tar`, `xz`, and,
+for XeLaTeX, the fontconfig library, plus Rust 1.88 or later. No existing TeX
+installation is needed. Desktop installations usually have all of these; on a
+minimal system:
+
+| Distribution | Command |
+| --- | --- |
+| Debian, Ubuntu | `sudo apt install curl perl xz-utils fontconfig` |
+| Fedora | `sudo dnf install curl perl xz tar fontconfig` |
+| Arch | `sudo pacman -S curl perl xz tar fontconfig` |
+
+CI builds a pdfLaTeX, XeLaTeX, and LuaLaTeX document on each of these, on both
+x86_64 and arm64 Ubuntu.
 
 ```bash
 cargo install --git https://github.com/chiwei085/texup

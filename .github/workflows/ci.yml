@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
+
+  # Keep `deps` in sync with the dependency table in README.md (plus gcc for cargo).
+  e2e:
+    name: e2e (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ubuntu x86_64
+            os: ubuntu-latest
+          - name: ubuntu arm64
+            os: ubuntu-24.04-arm
+          - name: debian
+            os: ubuntu-latest
+            container: debian:stable
+            deps: apt-get update && apt-get install -y --no-install-recommends ca-certificates curl perl xz-utils fontconfig gcc libc6-dev
+          - name: fedora
+            os: ubuntu-latest
+            container: fedora:latest
+            deps: dnf install -y curl perl xz tar fontconfig gcc
+          - name: arch
+            os: ubuntu-latest
+            container: archlinux:latest
+            deps: pacman -Syu --noconfirm curl perl xz tar fontconfig gcc
+    runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container }}
+    steps:
+      - if: matrix.deps
+        run: ${{ matrix.deps }}
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/texup
+          key: texup-${{ matrix.name }}-${{ hashFiles('tests/e2e/*/texup.lock') }}
+      - run: cargo build
+      - name: Build each engine with --locked
+        shell: bash
+        run: |
+          for e in pdflatex xelatex lualatex; do
+            target/debug/texup build --locked "tests/e2e/$e"
+            test -f "tests/e2e/$e/main.pdf"
+          done

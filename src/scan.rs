@@ -4,15 +4,11 @@ fn is_name(c: char) -> bool {
     c.is_ascii_alphanumeric() || c == '_' || c == '-'
 }
 
-// `Font \x=<name> at 10pt not loadable: ...` → `<name>`. pdfTeX and XeTeX say
-// `Metric (TFM) file ... not found`, LuaTeX `metric data not found or bad`.
 fn unloadable(line: &str) -> Option<&str> {
     let head = &line[..line.find(" not loadable: ")?];
     Some(head.split(" at ").next().unwrap_or(head).split_once('=')?.1)
 }
 
-// Fonts requested by name, which tlpdb cannot resolve directly: XeTeX writes
-// `="TeX Gyre Termes"`, LuaTeX `=name:TeX Gyre Termes:mode=node;...`.
 pub fn missing_fonts(log: &str) -> BTreeSet<String> {
     log.lines()
         .filter_map(unloadable)
@@ -22,8 +18,7 @@ pub fn missing_fonts(log: &str) -> BTreeSet<String> {
         .collect()
 }
 
-// Font files an XDV file uses: each native font definition (opcode 252) is
-// k[4] size[4] flags[2] len[1] path[len], with an absolute path.
+// XDV opcode 252: k[4] size[4] flags[2] len[1] path[len].
 pub fn xdv_fonts(xdv: &[u8]) -> BTreeSet<String> {
     let mut out = BTreeSet::new();
     for (i, _) in xdv.iter().enumerate().filter(|(_, b)| **b == 252) {
@@ -38,7 +33,6 @@ pub fn xdv_fonts(xdv: &[u8]) -> BTreeSet<String> {
     out
 }
 
-// Font files pdfTeX and LuaTeX embedded, listed as `</abs/path.otf>` before `Output written`.
 pub fn log_fonts(log: &str) -> BTreeSet<String> {
     let mut out = BTreeSet::new();
     for part in log.lines().filter(|l| l.starts_with("</")).flat_map(|l| l.split('<')) {
@@ -63,7 +57,7 @@ pub fn missing(log: &str) -> BTreeSet<String> {
         }
         if let Some(name) = unloadable(line) {
             if let Some(f) = name.strip_prefix('[').and_then(|n| n.split_once(']')).map(|(f, _)| f) {
-                out.insert(f.to_string()); // XeTeX font loaded by file name
+                out.insert(f.to_string());
             } else if !name.is_empty() && name.chars().all(is_name) {
                 out.insert(format!("{name}.tfm"));
             }

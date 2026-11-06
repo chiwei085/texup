@@ -1,0 +1,46 @@
+version = 1
+texlive = "2025/tlnet-final"
+
+[[package]]
+name = "amsfonts"
+revision = 77677
+
+[[package]]
+name = "arphic"
+revision = 15878
+
+[[package]]
+name = "bibtex"
+revision = 77677
+
+[[package]]
+name = "cjk"
+revision = 60865
+
+[[package]]
+name = "cm"
+revision = 57963
+
+[[package]]
+name = "iftex"
+revision = 77677
+
+[[package]]
+name = "kpathsea"
+revision = 75425
+
+[[package]]
+name = "l3backend"
+revision = 76924
+
+[[package]]
+name = "latex"
+revision = 76924
+
+[[package]]
+name = "latex-bin"
+revision = 77033
+
+[[package]]
+name = "latexmk"
+revision = 75540

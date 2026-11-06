@@ -1,0 +1,58 @@
+version = 1
+texlive = "2025/tlnet-final"
+
+[[package]]
+name = "bibtex"
+revision = 77677
+
+[[package]]
+name = "fontspec"
+revision = 77677
+
+[[package]]
+name = "l3backend"
+revision = 76924
+
+[[package]]
+name = "l3kernel"
+revision = 77438
+
+[[package]]
+name = "l3packages"
+revision = 76637
+
+[[package]]
+name = "latex"
+revision = 76924
+
+[[package]]
+name = "latex-bin"
+revision = 77033
+
+[[package]]
+name = "latexmk"
+revision = 75540
+
+[[package]]
+name = "lua-uni-algos"
+revision = 76195
+
+[[package]]
+name = "lualibs"
+revision = 67994
+
+[[package]]
+name = "luaotfload"
+revision = 74324
+
+[[package]]
+name = "tex-gyre"
+revision = 68624
+
+[[package]]
+name = "tex-ini-files"
+revision = 73863
+
+[[package]]
+name = "unicode-data"
+revision = 76413

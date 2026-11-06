@@ -13,7 +13,12 @@ const HISTORIC: &str = "https://ftp.math.utah.edu/pub/tex/historic/systems/texli
 const ROLLING: &str = "https://mirror.ctan.org/systems/texlive/tlnet";
 const BASE: [&str; 3] = ["latex-bin", "latexmk", "bibtex"];
 const LATEXMK: [&str; 4] = ["-f", "-synctex=1", "-interaction=nonstopmode", "-file-line-error"];
-const BIN: &str = "bin/x86_64-linux";
+#[cfg(all(target_os = "linux", target_env = "gnu", target_arch = "x86_64"))]
+const PLATFORM: &str = "x86_64-linux";
+#[cfg(all(target_os = "linux", target_env = "gnu", target_arch = "aarch64"))]
+const PLATFORM: &str = "aarch64-linux";
+#[cfg(not(all(target_os = "linux", target_env = "gnu", any(target_arch = "x86_64", target_arch = "aarch64"))))]
+compile_error!("texup supports x86_64 and aarch64 Linux with glibc only");
 const FONTS_CONF: &str = "texup-fonts.conf";
 
 macro_rules! die {
@@ -75,7 +80,17 @@ fn read(p: &Path) -> Option<String> {
 }
 
 fn ok(c: &mut Command) -> bool {
-    c.status().is_ok_and(|s| s.success())
+    match c.status() {
+        Ok(s) => s.success(),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            die!("{} not found; install it with your package manager", c.get_program().to_string_lossy())
+        }
+        Err(e) => die!("{}: {e}", c.get_program().to_string_lossy()),
+    }
+}
+
+fn bin(tl: &Path) -> PathBuf {
+    tl.join("bin").join(PLATFORM)
 }
 
 fn check(c: &mut Command) {
@@ -87,13 +102,12 @@ fn check(c: &mut Command) {
 fn tex(tl: &Path, prog: impl AsRef<std::ffi::OsStr>) -> Command {
     let mut c = Command::new(prog);
     let path = env::var("PATH").unwrap_or_default();
-    c.env("PATH", format!("{}:{path}", tl.join(BIN).display())).env("max_print_line", "10000");
+    c.env("PATH", format!("{}:{path}", bin(tl).display())).env("max_print_line", "10000");
     c.env("FONTCONFIG_FILE", tl.join(FONTS_CONF));
     c
 }
 
-// XeTeX finds fonts by name through fontconfig, which knows nothing of TeX Live's fonts
-// unless told. Regenerated on every run so a moved installation keeps working.
+// Regenerate fontconfig paths so XeTeX finds fonts after an installation is moved.
 fn ready(tl: PathBuf) -> PathBuf {
     let tl = fs::canonicalize(&tl).unwrap_or(tl);
     let fonts = tl.join("texmf-dist/fonts");
@@ -115,11 +129,25 @@ fn tlmgr_install<S: AsRef<std::ffi::OsStr>>(tl: &Path, pkgs: impl IntoIterator<I
     let log = home().join("tlmgr.log");
     let f = fs::OpenOptions::new().create(true).append(true).open(&log).unwrap_or_else(|e| die!("{e}"));
     let out = f.try_clone().unwrap_or_else(|e| die!("{e}"));
-    if !ok(tex(tl, tl.join(BIN).join("tlmgr")).arg("install").args(pkgs).stdout(out).stderr(f)) {
-        let text = read(&log).unwrap_or_default();
+    let start = f.metadata().map_or(0, |m| m.len() as usize);
+    if !ok(tex(tl, bin(tl).join("tlmgr")).arg("install").args(pkgs).stdout(out).stderr(f)) {
+        let bytes = fs::read(&log).unwrap_or_default();
+        let text = String::from_utf8_lossy(bytes.get(start..).unwrap_or_default());
         let lines: Vec<_> = text.lines().collect();
         eprintln!("{}", lines[lines.len().saturating_sub(20)..].join("\n"));
+        missing_library(&text);
         die!("tlmgr failed (full log: {})", log.display());
+    }
+}
+
+// fmtutil and latexmk can bury loader errors before any TeX log is written.
+fn missing_library(output: &str) {
+    let libs: BTreeSet<_> = output.lines().filter(|l| l.contains("error while loading shared libraries")).collect();
+    if !libs.is_empty() {
+        for l in libs {
+            eprintln!("{l}");
+        }
+        die!("a TeX Live program cannot start; install the missing system library with your package manager and rerun");
     }
 }
 
@@ -133,7 +161,7 @@ fn repo_of(local: &str) -> &str {
 
 fn ensure_tl(year: u32) -> PathBuf {
     let tl = home().join("tl").join(year.to_string());
-    if tl.join(BIN).join("tlmgr").exists() {
+    if bin(&tl).join("tlmgr").exists() {
         return ready(tl);
     }
     let frozen = format!("{HISTORIC}/{year}/tlnet-final");
@@ -141,7 +169,7 @@ fn ensure_tl(year: u32) -> PathBuf {
     let repo = if ok(Command::new("curl").args(["-sfIL", "-o", "/dev/null", &probe])) { frozen } else { ROLLING.to_string() };
     println!("texup: installing minimal TeX Live {year} → {}", tl.display());
     let tmp = home().join(format!("tmp-{}", std::process::id()));
-    let part = tl.with_extension("partial"); // Keep incomplete installations separate.
+    let part = tl.with_extension("partial"); // An interrupted install must not look usable.
     let _ = fs::remove_dir_all(&part);
     fs::create_dir_all(&tmp).unwrap_or_else(|e| die!("{e}"));
     let tgz = tmp.join("install-tl.tar.gz");
@@ -157,7 +185,7 @@ fn ensure_tl(year: u32) -> PathBuf {
     let profile = format!(
         "selected_scheme scheme-infraonly\nTEXDIR {d}\nTEXMFLOCAL {d}/texmf-local\nTEXMFSYSVAR {d}/texmf-var\n\
          TEXMFSYSCONFIG {d}/texmf-config\nTEXMFVAR {d}/home-var\nTEXMFCONFIG {d}/home-config\nTEXMFHOME {d}/home\n\
-         binary_x86_64-linux 1\ninstopt_adjustpath 0\ntlpdbopt_install_docfiles 0\ntlpdbopt_install_srcfiles 0\n\
+         binary_{PLATFORM} 1\ninstopt_adjustpath 0\ntlpdbopt_install_docfiles 0\ntlpdbopt_install_srcfiles 0\n\
          tlpdbopt_autobackup 0\n"
     );
     fs::write(tmp.join("profile"), profile).unwrap_or_else(|e| die!("{e}"));
@@ -220,7 +248,7 @@ fn manifest(dir: &Path) -> Manifest {
 fn setup(dir: &str) -> Project {
     let dir = fs::canonicalize(dir).unwrap_or_else(|e| die!("{dir}: {e}"));
     let m = manifest(&dir);
-    // The engine must be installed up front: without it latexmk fails before writing a log.
+    // Without the engine, latexmk fails before writing a log we can scan.
     let (flag, engine) = match m.build.engine.as_deref().unwrap_or("pdflatex") {
         "pdflatex" => ("-pdf", None),
         "xelatex" => ("-xelatex", Some("xetex")),
@@ -261,8 +289,7 @@ fn write_lock(p: &Project, locked: bool) {
     let Some(fls) = read(&p.file("fls")) else { return };
     let local = local_tlpdb(&p.tl);
     let db = tlpdb::parse(&local);
-    // .fls omits OpenType fonts. XeTeX's .xdv names every font file used; pdfTeX and
-    // LuaTeX list embedded fonts in the log.
+    // .fls omits OpenType fonts; recover them from .xdv or the engine log.
     let fonts = if p.flag == "-xelatex" {
         scan::xdv_fonts(&fs::read(p.file("xdv")).unwrap_or_default())
     } else {
@@ -308,13 +335,17 @@ fn build(p: &Project, locked: bool) -> i32 {
     let mut remote = None;
     let mut tried = HashSet::new();
     let mut rc;
-    // latexmk misses TeX Live changes unless forced to rebuild.
+    // TeX Live changes leave source timestamps untouched, so latexmk needs -g.
     let mine = format!("INPUT {}/", p.tl.display());
     let mut g = read(&p.file("fls")).is_some_and(|f| !f.contains(&mine));
     loop {
         let mut c = tex(&p.tl, "latexmk");
         c.current_dir(&p.dir).args(g.then_some("-g")).arg(p.flag).args(LATEXMK).arg(&p.main);
-        rc = c.stdout(Stdio::null()).stderr(Stdio::null()).status().map_or_else(|e| die!("latexmk: {e}"), |s| s.code().unwrap_or(1));
+        let out = c.stdout(Stdio::null()).output().unwrap_or_else(|e| die!("latexmk: {e}"));
+        rc = out.status.code().unwrap_or(1);
+        if rc != 0 {
+            missing_library(&String::from_utf8_lossy(&out.stderr));
+        }
         let mut new = Vec::new();
         let text = read(&log).unwrap_or_default();
         let (files, fonts) = (scan::missing(&text), scan::missing_fonts(&text));
@@ -341,7 +372,7 @@ fn build(p: &Project, locked: bool) -> i32 {
             break;
         }
         tlmgr_install(&p.tl, new);
-        g = true; // New packages do not change source timestamps.
+        g = true;
     }
     write_lock(p, locked);
     let pdf = p.file("pdf");
@@ -384,10 +415,10 @@ fn exec(args: &[String]) -> ! {
     let Some(cmd) = args.first() else { die!("usage: texup exec <command> [args...]") };
     let year = manifest(Path::new(".")).texlive.year;
     let tl = ensure_tl(year);
-    let bin = tl.join(BIN).join(cmd);
+    let bin = bin(&tl).join(cmd);
     if !bin.exists() {
         let db = remote_tlpdb(year, &tl);
-        let pkg = tlpdb::bin_provider(&db, cmd).unwrap_or_else(|| die!("no TeX Live {year} package provides the command {cmd}"));
+        let pkg = tlpdb::bin_provider(&db, cmd, PLATFORM).unwrap_or_else(|| die!("no TeX Live {year} package provides the command {cmd}"));
         println!("texup: installing {pkg} for {cmd}");
         tlmgr_install(&tl, [pkg]);
     }

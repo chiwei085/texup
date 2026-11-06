@@ -53,8 +53,7 @@ pub fn providers<'a>(pkgs: &'a [Pkg], file: &str) -> Vec<&'a str> {
     v
 }
 
-// shortcut: tlpdb has no font names, so match "TeX Gyre Termes" against the file name stem
-// of texgyretermes-regular.otf; a name unlike its files (Latin Modern → lmroman10) is not found.
+// shortcut: font names must match filename stems; parse font metadata when aliases such as Latin Modern are needed.
 pub fn font_provider<'a>(pkgs: &'a [Pkg], name: &str) -> Option<&'a str> {
     let norm = |s: &str| s.chars().filter(char::is_ascii_alphanumeric).collect::<String>().to_ascii_lowercase();
     let want = norm(name);
@@ -67,11 +66,11 @@ pub fn font_provider<'a>(pkgs: &'a [Pkg], name: &str) -> Option<&'a str> {
     v.first().copied()
 }
 
-// Executables live in `<pkg>.x86_64-linux`; installing `<pkg>` pulls in both halves.
-pub fn bin_provider<'a>(pkgs: &'a [Pkg], cmd: &str) -> Option<&'a str> {
-    let f = format!("bin/x86_64-linux/{cmd}");
+// Executables live in `<pkg>.<platform>`; installing `<pkg>` pulls in both halves.
+pub fn bin_provider<'a>(pkgs: &'a [Pkg], cmd: &str, platform: &str) -> Option<&'a str> {
+    let f = format!("bin/{platform}/{cmd}");
     let p = pkgs.iter().find(|p| p.binfiles.contains(&f))?;
-    Some(p.name.strip_suffix(".x86_64-linux").unwrap_or(&p.name))
+    Some(p.name.strip_suffix(&format!(".{platform}")).unwrap_or(&p.name))
 }
 
 pub fn owners<'a, 'b>(pkgs: &'a [Pkg], paths: impl Iterator<Item = &'b str>) -> BTreeMap<&'a str, u64> {
@@ -117,8 +116,8 @@ mod tests {
     #[test]
     fn command_to_package() {
         let db = fixture();
-        assert_eq!(bin_provider(&db, "latexdiff-vc"), Some("latexdiff"));
-        assert_eq!(bin_provider(&db, "latexdiff-v"), None);
+        assert_eq!(bin_provider(&db, "latexdiff-vc", "x86_64-linux"), Some("latexdiff"));
+        assert_eq!(bin_provider(&db, "latexdiff-v", "x86_64-linux"), None);
         assert!(db.iter().all(|p| p.binfiles.is_empty() || p.runfiles.is_empty()));
     }
 

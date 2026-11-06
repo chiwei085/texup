@@ -16,13 +16,16 @@ principles and verified TeX Live behavior. Read it before changing related logic
 
 ## Principles
 
+- Comments explain intent, constraints, and non-obvious behavior; do not narrate the code.
 - Scope: the manifest/lockfile contract, tlpdb parsing, invoking `install-tl`,
   `tlmgr`, and `latexmk`, installing missing packages, and generating the lockfile
   from `.fls`.
 - Out of scope: modifying TeX engines, FUSE or lazy filesystems, and reimplementing
   TeX Live installation semantics. Leave `.fmt` generation and `updmap` to
   `tlmgr`. These alternatives were evaluated and were not worth the complexity.
-- Support only x86_64 Linux, pdfLaTeX, XeLaTeX, and LuaLaTeX.
+- Support only x86_64 and aarch64 Linux with glibc (TeX Live's `x86_64-linux` and
+  `aarch64-linux`), and pdfLaTeX, XeLaTeX, and LuaLaTeX. The platform is fixed at
+  compile time; `cargo install` builds on the host.
 - Keep dependencies limited to `serde` and `toml`. Use `curl`, `tar`, and `xz`
   directly for downloads and extraction.
 - **Do not generate `latexmkrc`:** Overleaf reads it.
@@ -183,3 +186,20 @@ reason for keeping a lockfile.
 
 Recommended coverage: a document using a frozen TeX Live year, CJKutf8, and
 BibTeX, plus a minimal document.
+
+CI (`.github/workflows/ci.yml`) runs clippy and the tests, then builds
+`tests/e2e/<engine>/` with `--locked` on Ubuntu x86_64 and arm64 and in Debian,
+Fedora, and Arch containers. After changing those documents, regenerate their
+`texup.lock` with an empty `TEXUP_HOME`.
+
+### Linux dependencies
+
+- texup needs `perl`, `curl`, `tar`, and `xz`; report a missing one by name.
+- TeX Live's `xetex` links the system's `libfontconfig` (and freetype, png,
+  etc.); `pdftex` and `luahbtex` need only libc. Without fontconfig,
+  `tlmgr install xetex` already fails in fmtutil with only
+  `ERROR: xetex.fmt/xetex` at the end; the cause (`error while loading shared
+  libraries`) is earlier in the output. If the library disappears later, xelatex
+  fails before writing a log. Search this run's part of `tlmgr.log` and
+  latexmk's stderr for the loader line and report it. Installing the library and
+  rerunning recovers.
