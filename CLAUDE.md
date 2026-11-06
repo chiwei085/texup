@@ -11,8 +11,8 @@ principles and verified TeX Live behavior. Read it before changing related logic
   `*-dev` packages ranked last; full-path-to-package lookup; command-to-package
   lookup for `texup exec`.
 - `src/scan.rs`: missing-file detection from `.log` and extraction of TeX Live
-  files actually read from `.fls`.
-- `tests/fixtures/`: excerpts from real tlpdb, log, and `.fls` files.
+  files actually read from `.fls` and fonts used from `.xdv`.
+- `tests/fixtures/`: excerpts from real tlpdb, log, `.fls`, and `.xdv` files.
 
 ## Principles
 
@@ -22,8 +22,8 @@ principles and verified TeX Live behavior. Read it before changing related logic
 - Out of scope: modifying TeX engines, FUSE or lazy filesystems, and reimplementing
   TeX Live installation semantics. Leave `.fmt` generation and `updmap` to
   `tlmgr`. These alternatives were evaluated and were not worth the complexity.
-- Support only x86_64 Linux and pdfLaTeX. The `engine` field is reserved for
-  future XeLaTeX/LuaLaTeX support.
+- Support only x86_64 Linux, pdfLaTeX, and XeLaTeX. The `engine` field is
+  reserved for future LuaLaTeX support.
 - Keep dependencies limited to `serde` and `toml`. Use `curl`, `tar`, and `xz`
   directly for downloads and extraction.
 - **Do not generate `latexmkrc`:** Overleaf reads it.
@@ -106,6 +106,29 @@ reason for keeping a lockfile.
    the log.
 3. **`\IfFileExists` fallbacks.** A missing file selects the fallback branch
    without an error, so texup cannot detect it.
+
+### XeLaTeX
+
+- `scheme-infraonly` has no `xelatex`, and latexmk then fails without a log to
+  scan. Install `xetex` up front, like `latex-bin` for pdfLaTeX, and lock it.
+- fontspec loads fonts by name through fontconfig, which does not know TeX
+  Live's font directories. Generate `<tl>/texup-fonts.conf` (system
+  `/etc/fonts/fonts.conf` plus TeX Live's `fonts/{opentype,truetype,type1}`) on
+  every run and pass it as `FONTCONFIG_FILE`; TeX Live's own
+  `texlive-fontconfig.conf` holds absolute paths and breaks after `mv`.
+  System fonts stay visible because Overleaf has fonts outside TeX Live (Noto
+  CJK from Ubuntu 22.04, among others).
+- `.fls` records no OpenType fonts, and xdvipdfmx's reads are not recorded at
+  all. The `.xdv` holds the absolute path of every native font used (opcode 252:
+  k[4] size[4] flags[2] len[1] path); lock the TeX Live ones and note the rest.
+- Missing fonts: `Font ...=[file.otf]/OT at ... not loadable: Metric (TFM) file
+  or installed font not found` maps to `file.otf`; `="Name"` has no tlpdb
+  mapping, so match the normalized name against OpenType/TrueType file name
+  prefixes (`TeX Gyre Termes` → `texgyretermes-regular.otf`).
+- fontspec wraps its own info lines, so `<->"Font Name"` in the log is
+  unreliable regardless of `max_print_line`.
+- Dependencies often pull in fonts: `xecjk` → `ctex` → `fandol`; `fontspec` →
+  `lm`.
 
 ### tlpdb
 

@@ -100,7 +100,7 @@ engine = "pdflatex"
 | --- | --- | --- |
 | `texlive.year` | Yes | — |
 | `build.main` | No | `main.tex` if it exists, otherwise the only top-level `.tex` file containing `\documentclass` |
-| `build.engine` | No | `pdflatex`, currently the only supported engine |
+| `build.engine` | No | `pdflatex`; also `xelatex` (see [XeLaTeX](#xelatex)) |
 
 ### `texup.lock`
 
@@ -180,6 +180,23 @@ The cache key changes with the lockfile, so each cache holds exactly the locked
 packages. For the current (rolling) year, an uncached run installs the latest
 revisions, and `--locked` fails if any differ from the lockfile.
 
+## XeLaTeX
+
+Set `engine = "xelatex"` to match an Overleaf project compiled with XeLaTeX.
+fontspec finds fonts by name through fontconfig; texup points it at TeX Live's
+fonts plus your system fonts.
+
+- TeX Live fonts are installed on demand like packages, whether loaded by file
+  name (`\setmainfont{texgyretermes-regular.otf}`) or by name
+  (`\setmainfont{TeX Gyre Termes}`). Names are matched against font file names,
+  so a family whose files are named differently may not be found; use its file
+  name instead.
+- Overleaf also has fonts that are not part of TeX Live, notably Noto CJK
+  (`Noto Serif CJK TC` and others) and some Microsoft core fonts. Install them on
+  your system, e.g. `apt install fonts-noto-cjk`. texup prints a note for every
+  non-TeX Live font the document uses, since these are not in `texup.lock` and
+  Overleaf must provide them too.
+
 ## Cache
 
 The cache lives in `~/.cache/texup`, or in `$TEXUP_HOME` if set:
@@ -197,7 +214,7 @@ keeps the full `tlmgr` output for troubleshooting.
 
 ## Limitations
 
-- Only x86_64 Linux and pdfLaTeX are supported.
+- Only x86_64 Linux, pdfLaTeX, and XeLaTeX are supported.
 - A file probed with `\IfFileExists` silently falls back when missing, so texup
   cannot detect it.
 - Missing Type 1 fonts are resolved by looking up `<font>.pfb`. EC/TC fonts such

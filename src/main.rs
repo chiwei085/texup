@@ -12,8 +12,9 @@ use std::env;
 const HISTORIC: &str = "https://ftp.math.utah.edu/pub/tex/historic/systems/texlive";
 const ROLLING: &str = "https://mirror.ctan.org/systems/texlive/tlnet";
 const BASE: [&str; 3] = ["latex-bin", "latexmk", "bibtex"];
-const LATEXMK: [&str; 5] = ["-pdf", "-f", "-synctex=1", "-interaction=nonstopmode", "-file-line-error"];
+const LATEXMK: [&str; 4] = ["-f", "-synctex=1", "-interaction=nonstopmode", "-file-line-error"];
 const BIN: &str = "bin/x86_64-linux";
+const FONTS_CONF: &str = "texup-fonts.conf";
 
 macro_rules! die {
     ($($t:tt)*) => {{ eprintln!("texup: {}", format!($($t)*)); exit(1) }};
@@ -49,6 +50,8 @@ struct LockPkg {
 }
 
 struct Project {
+    flag: &'static str,
+    base: Vec<&'static str>,
     dir: PathBuf,
     main: String,
     year: u32,
@@ -85,7 +88,26 @@ fn tex(tl: &Path, prog: impl AsRef<std::ffi::OsStr>) -> Command {
     let mut c = Command::new(prog);
     let path = env::var("PATH").unwrap_or_default();
     c.env("PATH", format!("{}:{path}", tl.join(BIN).display())).env("max_print_line", "10000");
+    c.env("FONTCONFIG_FILE", tl.join(FONTS_CONF));
     c
+}
+
+// XeTeX finds fonts by name through fontconfig, which knows nothing of TeX Live's fonts
+// unless told. Regenerated on every run so a moved installation keeps working.
+fn ready(tl: PathBuf) -> PathBuf {
+    let tl = fs::canonicalize(&tl).unwrap_or(tl);
+    let fonts = tl.join("texmf-dist/fonts");
+    let conf = format!(
+        "<?xml version=\"1.0\"?>\n<!DOCTYPE fontconfig SYSTEM \"fonts.dtd\">\n<fontconfig>\n\
+         <include ignore_missing=\"yes\">/etc/fonts/fonts.conf</include>\n\
+         <dir>{0}/opentype</dir>\n<dir>{0}/truetype</dir>\n<dir>{0}/type1</dir>\n</fontconfig>\n",
+        fonts.display()
+    );
+    let path = tl.join(FONTS_CONF);
+    if read(&path).as_deref() != Some(conf.as_str()) {
+        fs::write(&path, conf).unwrap_or_else(|e| die!("{e}"));
+    }
+    tl
 }
 
 // An absolute path lets tlmgr locate its installation.
@@ -112,7 +134,7 @@ fn repo_of(local: &str) -> &str {
 fn ensure_tl(year: u32) -> PathBuf {
     let tl = home().join("tl").join(year.to_string());
     if tl.join(BIN).join("tlmgr").exists() {
-        return fs::canonicalize(&tl).unwrap_or(tl);
+        return ready(tl);
     }
     let frozen = format!("{HISTORIC}/{year}/tlnet-final");
     let probe = format!("{frozen}/tlpkg/texlive.tlpdb.xz");
@@ -153,7 +175,7 @@ fn ensure_tl(year: u32) -> PathBuf {
         die!("{repo} does not serve TeX Live {year} (installation left at {})", part.display());
     }
     fs::rename(&part, &tl).unwrap_or_else(|e| die!("{e}"));
-    fs::canonicalize(&tl).unwrap_or(tl)
+    ready(tl)
 }
 
 fn remote_tlpdb(year: u32, tl: &Path) -> Vec<tlpdb::Pkg> {
@@ -198,13 +220,17 @@ fn manifest(dir: &Path) -> Manifest {
 fn setup(dir: &str) -> Project {
     let dir = fs::canonicalize(dir).unwrap_or_else(|e| die!("{dir}: {e}"));
     let m = manifest(&dir);
-    if let Some(e) = m.build.engine.as_deref().filter(|e| *e != "pdflatex") {
-        die!("only pdflatex is supported (texup.toml says {e})");
-    }
+    // The engine must be installed up front: without it latexmk fails before writing a log.
+    let (flag, engine) = match m.build.engine.as_deref().unwrap_or("pdflatex") {
+        "pdflatex" => ("-pdf", None),
+        "xelatex" => ("-xelatex", Some("xetex")),
+        e => die!("unsupported engine {e} in texup.toml (use pdflatex or xelatex)"),
+    };
+    let base = BASE.into_iter().chain(engine).collect();
     let main = m.build.main.or_else(|| main_of(&dir)).unwrap_or_else(|| {
         die!("{}: no unique main file; name it main.tex or set [build] main in texup.toml", dir.display())
     });
-    Project { tl: ensure_tl(m.texlive.year), year: m.texlive.year, dir, main }
+    Project { flag, base, tl: ensure_tl(m.texlive.year), year: m.texlive.year, dir, main }
 }
 
 fn read_lock(p: &Project) -> Lock {
@@ -217,7 +243,7 @@ fn fetch(p: &Project) {
     let lock = read_lock(p);
     let mut have = installed(&p.tl);
     let need: BTreeSet<&str> =
-        BASE.into_iter().chain(lock.package.iter().map(|l| l.name.as_str())).filter(|n| !have.contains_key(*n)).collect();
+        p.base.iter().copied().chain(lock.package.iter().map(|l| l.name.as_str())).filter(|n| !have.contains_key(*n)).collect();
     if !need.is_empty() {
         println!("texup: installing {} packages from lockfile", need.len());
         tlmgr_install(&p.tl, need);
@@ -234,8 +260,15 @@ fn write_lock(p: &Project, locked: bool) {
     let Some(fls) = read(&p.file("fls")) else { return };
     let local = local_tlpdb(&p.tl);
     let db = tlpdb::parse(&local);
-    let mut pkgs = tlpdb::owners(&db, scan::tl_inputs(&fls));
-    for d in db.iter().filter(|d| BASE.contains(&d.name.as_str())) {
+    // .fls omits OpenType fonts; the .xdv names every font file XeTeX used.
+    let xdv = if p.flag == "-xelatex" { fs::read(p.file("xdv")).unwrap_or_default() } else { Vec::new() };
+    let fonts = scan::xdv_fonts(&xdv);
+    let prefix = format!("{}/", p.tl.display());
+    for f in fonts.iter().filter(|f| !f.starts_with(&prefix)) {
+        eprintln!("texup: note: {f} is not from TeX Live; Overleaf must provide it too");
+    }
+    let mut pkgs = tlpdb::owners(&db, scan::tl_inputs(&fls).chain(fonts.iter().filter_map(|f| f.strip_prefix(&prefix))));
+    for d in db.iter().filter(|d| p.base.contains(&d.name.as_str())) {
         pkgs.insert(&d.name, d.revision);
     }
     let kind = if repo_of(&local).ends_with("tlnet-final") { "tlnet-final" } else { "tlnet" };
@@ -275,12 +308,19 @@ fn build(p: &Project, locked: bool) -> i32 {
     let mut g = read(&p.file("fls")).is_some_and(|f| !f.contains(&mine));
     loop {
         let mut c = tex(&p.tl, "latexmk");
-        c.current_dir(&p.dir).args(g.then_some("-g")).args(LATEXMK).arg(&p.main);
+        c.current_dir(&p.dir).args(g.then_some("-g")).arg(p.flag).args(LATEXMK).arg(&p.main);
         rc = c.stdout(Stdio::null()).stderr(Stdio::null()).status().map_or_else(|e| die!("latexmk: {e}"), |s| s.code().unwrap_or(1));
         let mut new = Vec::new();
-        for f in scan::missing(&read(&log).unwrap_or_default()) {
-            let db = remote.get_or_insert_with(|| remote_tlpdb(p.year, &p.tl));
-            match tlpdb::providers(db, &f).first() {
+        let text = read(&log).unwrap_or_default();
+        let (files, fonts) = (scan::missing(&text), scan::missing_fonts(&text));
+        if files.is_empty() && fonts.is_empty() {
+            break;
+        }
+        let db = remote.get_or_insert_with(|| remote_tlpdb(p.year, &p.tl));
+        let files = files.into_iter().map(|f| (tlpdb::providers(db, &f).first().copied(), f));
+        let fonts = fonts.into_iter().map(|n| (tlpdb::font_provider(db, &n), format!("font \"{n}\"")));
+        for (n, f) in files.chain(fonts) {
+            match n {
                 None => eprintln!("texup: no TeX Live {} package provides {f} (missing from the project?)", p.year),
                 Some(n) if tried.insert(n.to_string()) => {
                     if locked {
@@ -319,7 +359,7 @@ fn build(p: &Project, locked: bool) -> i32 {
 }
 
 fn why(p: &Project, pkg: &str) {
-    if BASE.contains(&pkg) {
+    if p.base.contains(&pkg) {
         println!("texup: {pkg} is always locked (needed to compile)");
         return;
     }
@@ -410,7 +450,7 @@ fn main() {
         "watch" => {
             let p = setup(dir);
             build(&p, false);
-            let e = tex(&p.tl, "latexmk").current_dir(&p.dir).arg("-pvc").args(LATEXMK).arg(&p.main).exec();
+            let e = tex(&p.tl, "latexmk").current_dir(&p.dir).arg("-pvc").arg(p.flag).args(LATEXMK).arg(&p.main).exec();
             die!("latexmk: {e}");
         }
         "clean" => {

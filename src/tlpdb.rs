@@ -53,6 +53,20 @@ pub fn providers<'a>(pkgs: &'a [Pkg], file: &str) -> Vec<&'a str> {
     v
 }
 
+// shortcut: tlpdb has no font names, so match "TeX Gyre Termes" against the file name stem
+// of texgyretermes-regular.otf; a name unlike its files (Latin Modern → lmroman10) is not found.
+pub fn font_provider<'a>(pkgs: &'a [Pkg], name: &str) -> Option<&'a str> {
+    let norm = |s: &str| s.chars().filter(char::is_ascii_alphanumeric).collect::<String>().to_ascii_lowercase();
+    let want = norm(name);
+    let hit = |f: &String| {
+        let stem = f.rsplit('/').next().unwrap_or("").split(['-', '.', '_']).next().unwrap_or("");
+        (f.contains("/fonts/opentype/") || f.contains("/fonts/truetype/")) && norm(stem) == want
+    };
+    let mut v: Vec<&str> = pkgs.iter().filter(|p| p.runfiles.iter().any(hit)).map(|p| p.name.as_str()).collect();
+    v.sort_by_key(|n| n.ends_with("-dev"));
+    v.first().copied()
+}
+
 // Executables live in `<pkg>.x86_64-linux`; installing `<pkg>` pulls in both halves.
 pub fn bin_provider<'a>(pkgs: &'a [Pkg], cmd: &str) -> Option<&'a str> {
     let f = format!("bin/x86_64-linux/{cmd}");
@@ -91,6 +105,13 @@ mod tests {
         assert_eq!(providers(&db, "cmr12.pfb"), ["amsfonts"]);
         assert!(providers(&db, "nope.sty").is_empty());
         assert_eq!(providers(&db, "tcrm1200.pfb"), ["cm-super"]);
+    }
+
+    #[test]
+    fn font_name_to_package() {
+        let db = fixture();
+        assert_eq!(font_provider(&db, "TeX Gyre Termes"), Some("tex-gyre"));
+        assert_eq!(font_provider(&db, "Noto Serif CJK TC"), None);
     }
 
     #[test]

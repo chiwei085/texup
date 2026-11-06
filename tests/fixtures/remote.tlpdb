@@ -118,3 +118,84 @@ binfiles arch=x86_64-linux size=3
  bin/x86_64-linux/latexdiff
  bin/x86_64-linux/latexdiff-vc
  bin/x86_64-linux/latexrevise
+
+name context
+category Package
+revision 78011
+shortdesc The ConTeXt macro package
+depend context.ARCH
+depend dejavu
+depend lm
+depend lm-math
+containersize 9702780
+containerchecksum 28bc8ac82dfa3f316ddcaef64305bef74666abe286c3bfb1c2bf5b7f801c46a9e538517180013cb77e2f4f2a5b572a0788dee5aace77191997d7b96efef51cc0
+doccontainersize 127982512
+doccontainerchecksum 945f52a793fd8fafd7bde064ba26fafd6e160a963323a15846a5585c7bd8ce5500f309789bdeb607d0bbf54c92513d8b88368464cf698599c96f63aba8c2150d
+srccontainersize 3513032
+srccontainerchecksum b4145227629500578b05e5632645f389b05a88cb3b2777c8364b1ef1851eb4de551b081e1f2bcfe1a23839bd0991180bbce739e679dc26df43a530b9bcaa7ecf
+runfiles size=14887
+ texmf-dist/fonts/opentype/public/context/TeXGyreTermesMathCompanion-Regular.otf
+catalogue-alias context-legacy context-nonfree luametatex
+catalogue-contact-home https://www.pragma-ade.nl/
+catalogue-contact-repository https://github.com/contextgarden/context
+catalogue-contact-support https://mailman.ntg.nl/archives/list/ntg-context@ntg.nl/
+catalogue-ctan /macros/context/base
+catalogue-license other-free
+catalogue-topics format context
+catalogue-version 2026-02-19 11:49 A
+
+name tex-gyre
+category Package
+revision 68624
+shortdesc TeX Fonts extending freely available URW fonts
+relocated 1
+longdesc The TeX-GYRE bundle consists of six font families: TeX Gyre
+longdesc Adventor is based on the URW Gothic L family of fonts (which is
+longdesc derived from ITC Avant Garde Gothic, designed by Herb Lubalin
+longdesc and Tom Carnase). TeX Gyre Bonum is based on the URW Bookman L
+longdesc family (from Bookman Old Style, designed by Alexander
+longdesc Phemister). TeX Gyre Chorus is based on URW Chancery L Medium
+longdesc Italic (from ITC Zapf Chancery, designed by Hermann Zapf in
+longdesc 1979). TeX-Gyre Cursor is based on URW Nimbus Mono L (based on
+longdesc Courier, designed by Howard G. Kettler in 1955, for IBM). TeX
+longdesc Gyre Heros is based on URW Nimbus Sans L (from Helvetica,
+longdesc prepared by Max Miedinger, with Eduard Hoffmann in 1957). TeX
+longdesc Gyre Pagella is based on URW Palladio L (from Palatino,
+longdesc designed by Hermann Zapf in the 1940s). TeX Gyre Schola is
+longdesc based on the URW Century Schoolbook L family (from Century
+longdesc Schoolbook, designed by Morris Fuller Benton for the American
+longdesc Type Founders). TeX Gyre Termes is based on the URW Nimbus
+longdesc Roman No9 L family of fonts (from Times New Roman, designed by
+longdesc Stanley Morison together with Starling Burgess and Victor
+longdesc Lardent and first offered by Monotype). The constituent
+longdesc standard faces of each family have been greatly extended
+longdesc (though Chorus omits Greek support and has no small-caps
+longdesc family). Each family is available in Adobe Type 1 and Open Type
+longdesc formats, and LaTeX support (for use with a variety of
+longdesc encodings) is provided. Vietnamese characters were added by Han
+longdesc The Thanh. There are companion maths fonts for several of these
+longdesc designs, listed in the TeX Gyre Math package.
+execute addMap qag.map
+execute addMap qbk.map
+execute addMap qcr.map
+execute addMap qcs.map
+execute addMap qhv.map
+execute addMap qpl.map
+execute addMap qtm.map
+execute addMap qzc.map
+containersize 7748428
+containerchecksum 5422f349d15233e6f49576fe3a65f8afb5cae6a3c51e5ad7cb56617d7d064e9cf574f233f789c029c04bbfc24e5948c115b2d33569e881373d68615ac709153f
+doccontainersize 11141772
+doccontainerchecksum db2bcc8da6d3bfb6f2165c1fb127b2b4a7471e41a0cebb851ce5465a18740d34948ce8292b4f6bd359621166602cf62a978bb179346dbd1dcfada49cc7972686
+srccontainersize 1016896
+srccontainerchecksum e958408e6e64a54b25fa89b38de181c96fffb9eb8762959209799c39cead7a5525f220b7b3cd278e35cb9e3e49c1c85d565d518ffacb0695b0c3c09ede935266
+runfiles size=6656
+ RELOC/fonts/opentype/public/tex-gyre/texgyretermes-bold.otf
+ RELOC/fonts/opentype/public/tex-gyre/texgyretermes-bolditalic.otf
+ RELOC/fonts/opentype/public/tex-gyre/texgyretermes-italic.otf
+ RELOC/fonts/opentype/public/tex-gyre/texgyretermes-regular.otf
+catalogue-contact-home https://www.gust.org.pl/projects/e-foundry/tex-gyre
+catalogue-ctan /fonts/tex-gyre
+catalogue-license gfl
+catalogue-topics font font-otf font-proportional font-sans font-serif font-type1 font-collection
+catalogue-version 2.501

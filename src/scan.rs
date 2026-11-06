@@ -4,6 +4,37 @@ fn is_name(c: char) -> bool {
     c.is_ascii_alphanumeric() || c == '_' || c == '-'
 }
 
+// `Font \x=<name> at 10pt not loadable: ...` → `<name>`.
+fn unloadable(line: &str) -> Option<&str> {
+    let head = &line[..line.find(" not loadable: Metric (TFM)")?];
+    Some(head.split(" at ").next().unwrap_or(head).split_once('=')?.1)
+}
+
+// XeTeX fonts requested by name (`="TeX Gyre Termes"`), which tlpdb cannot resolve directly.
+pub fn missing_fonts(log: &str) -> BTreeSet<String> {
+    log.lines()
+        .filter_map(unloadable)
+        .filter_map(|n| n.strip_prefix('"')?.strip_suffix('"')?.split([':', '/']).next()) // drop `/OT:features`
+        .map(String::from)
+        .collect()
+}
+
+// Font files an XDV file uses: each native font definition (opcode 252) is
+// k[4] size[4] flags[2] len[1] path[len], with an absolute path.
+pub fn xdv_fonts(xdv: &[u8]) -> BTreeSet<String> {
+    let mut out = BTreeSet::new();
+    for (i, _) in xdv.iter().enumerate().filter(|(_, b)| **b == 252) {
+        let Some(&len) = xdv.get(i + 11) else { continue };
+        if let Some(Ok(p)) = xdv.get(i + 12..i + 12 + len as usize).map(std::str::from_utf8)
+            && p.starts_with('/')
+            && p.contains("/fonts/")
+        {
+            out.insert(p.to_string());
+        }
+    }
+    out
+}
+
 pub fn missing(log: &str) -> BTreeSet<String> {
     let mut out = BTreeSet::new();
     for line in log.lines() {
@@ -16,13 +47,10 @@ pub fn missing(log: &str) -> BTreeSet<String> {
                 out.insert(if f.contains('.') { f.to_string() } else { format!("{f}.tex") });
             }
         }
-        if let Some(i) = line.find(" not loadable: Metric (TFM)") {
-            let head = &line[..i];
-            let head = head.split(" at ").next().unwrap_or(head);
-            if let Some((_, name)) = head.rsplit_once('=')
-                && !name.is_empty()
-                && name.chars().all(is_name)
-            {
+        if let Some(name) = unloadable(line) {
+            if let Some(f) = name.strip_prefix('[').and_then(|n| n.split_once(']')).map(|(f, _)| f) {
+                out.insert(f.to_string()); // XeTeX font loaded by file name
+            } else if !name.is_empty() && name.chars().all(is_name) {
                 out.insert(format!("{name}.tfm"));
             }
         }
@@ -59,8 +87,26 @@ mod tests {
     #[test]
     fn missing_from_real_log() {
         let got = missing(include_str!("../tests/fixtures/missing.log"));
-        let want = ["cmr12.pfb", "tcrm1200.pfb", "zzfont.tfm", "zzfontb.tfm", "zzmissing.sty", "zznofile.tex"];
+        let want = [
+            "cmr12.pfb",
+            "tcrm1200.pfb",
+            "texgyretermes-regular.otf",
+            "zzfont.tfm",
+            "zzfontb.tfm",
+            "zzmissing.sty",
+            "zznofile.tex",
+        ];
         assert_eq!(got.iter().map(String::as_str).collect::<Vec<_>>(), want);
+        let fonts = missing_fonts(include_str!("../tests/fixtures/missing.log"));
+        assert_eq!(fonts.into_iter().collect::<Vec<_>>(), ["TeX Gyre Termes"]);
+    }
+
+    #[test]
+    fn fonts_from_xdv() {
+        let got = xdv_fonts(include_bytes!("../tests/fixtures/xecjk.xdv"));
+        let names: Vec<_> = got.iter().map(|p| p.rsplit('/').next().unwrap()).collect();
+        assert_eq!(names, ["FandolSong-Regular.otf", "lmroman10-regular.otf"]);
+        assert!(got.iter().all(|p| p.contains("/texmf-dist/fonts/opentype/")));
     }
 
     #[test]
