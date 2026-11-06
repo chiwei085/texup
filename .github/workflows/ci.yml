@@ -45,6 +45,14 @@ jobs:
         run: ${{ matrix.deps }}
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
+      # texup compiles through texweft; build it from source until it publishes binaries.
+      # Pinned so a protocol change in texweft cannot change texup's CI; bump it deliberately.
+      - uses: actions/checkout@v7
+        with:
+          repository: chiwei085/texweft
+          ref: 05d6f555a20d770e8adf95c6575d432994a33e76
+          path: texweft
+      - run: cargo install --locked --path texweft
       - uses: actions/cache@v6
         with:
           path: ~/.cache/texup

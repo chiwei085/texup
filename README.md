@@ -38,6 +38,16 @@ texup --version
 Make sure `~/.local/bin` is on your `PATH`. To update, rerun the same commands.
 Each release also lists a `.sha256` checksum for every binary.
 
+texup compiles through [texweft](https://github.com/chiwei085/texweft), a build
+driver that reports results as structured messages. For now texweft must be
+installed separately and be on your `PATH` (texup stops with
+`texup: texweft not found on PATH` otherwise); texup will download it itself once
+texweft publishes release binaries:
+
+```bash
+cargo install --git https://github.com/chiwei085/texweft
+```
+
 To build from source instead, install Rust 1.88 or later and run:
 
 ```bash
@@ -70,9 +80,9 @@ Every command takes an optional project directory, defaulting to the current one
 | --- | --- |
 | `texup init [dir] [--year Y]` | Create `texup.toml`. |
 | `texup build [dir] [--locked]` | Compile the document and update `texup.lock`. With `--locked`, fail instead of installing a package or changing `texup.lock`. |
-| `texup watch [dir]` | Build, then rebuild on changes with `latexmk -pvc`. |
+| `texup watch [dir]` | Build, then rebuild whenever a file the document reads changes, installing missing packages as they come up. It does not open a PDF viewer; point your viewer at the PDF, which it reloads. |
 | `texup fetch [dir]` | Install the packages in `texup.lock` without compiling, e.g. before going offline. |
-| `texup clean [dir]` | Remove build artifacts with `latexmk -C`. |
+| `texup clean [dir]` | Remove the build outputs texweft made (a `.bbl` you ship without its `.bib` is kept). |
 | `texup why <package> [dir]` | List the files from `<package>` that the last build read, i.e. why it is in `texup.lock`. |
 | `texup exec <cmd> [args…]` | Run a TeX Live command from the project's year, installing its package first if needed. Runs in the current directory. |
 | `texup --version` | Print the texup version. |
@@ -95,10 +105,12 @@ what the document itself reads.
 
 1. Install the year's TeX Live infrastructure if it is not cached yet.
 2. Install any packages from `texup.lock` that are missing.
-3. Run `latexmk`. When the log reports a missing file, install the package that
-   provides it and rerun, until nothing is missing.
-4. Write `texup.lock` from the `.fls` file: the packages owning every TeX Live
-   file the build read, plus `latex-bin`, `latexmk`, and `bibtex`.
+3. Run `texweft build`. When it reports a missing file, font, or program, install
+   the package that provides it and rerun, until nothing is missing. A Type 1
+   font that TeX silently replaced with a bitmap is installed the same way.
+4. Write `texup.lock` from texweft's list of inputs: the packages owning every
+   TeX Live file the build read (fonts included), the packages providing the
+   programs it ran (such as `biber`), plus `latex-bin` and `bibtex`.
 
 The lockfile reflects what the document uses, not what happens to be in the
 shared cache. It is rewritten only when its contents change, so file watchers
@@ -145,16 +157,23 @@ revision = 68941
 
 ## Overleaf compatibility
 
-- texup runs the same command as Overleaf:
-
-  ```bash
-  latexmk -pdf -f -synctex=1 -interaction=nonstopmode -file-line-error <main>
-  ```
-
-- Because of `-f`, a PDF is produced even when BibTeX reports errors. texup then
+- texweft runs the engines with the options Overleaf's `latexmk -pdf -f
+  -synctex=1 -interaction=nonstopmode -file-line-error` uses, and keeps the
+  outputs next to the sources.
+- Like Overleaf, a document with errors still gets a complete PDF: BibTeX and
+  reruns still happen, so citations and cross-references resolve. texup then
   exits with a nonzero code and prints an error summary.
 - Overleaf ignores `texup.toml` and `texup.lock`.
 - texup never creates a `latexmkrc`, which Overleaf would pick up.
+- Besides the usual auxiliary files, a build leaves `<main>.texweft.json`
+  (texweft's record of the last successful build) and `.<main>.texweft.lock`
+  next to the sources. Like `.aux` and `.log`, keep them out of git and out of
+  uploads to Overleaf:
+
+  ```gitignore
+  *.texweft.json
+  .*.texweft.lock
+  ```
 
 ## VS Code (LaTeX Workshop)
 
@@ -252,6 +271,9 @@ keeps the full `tlmgr` output for troubleshooting.
 - Missing Type 1 fonts are resolved by looking up `<font>.pfb`. EC/TC fonts such
   as `tcrm1200` are special-cased to `cm-super`; other fonts whose Type 1 file has
   a different name are not resolved automatically.
+- Documents that need makeindex, glossaries, or shell escape stop with an
+  "unsupported" error instead of producing a possibly incomplete PDF; texweft
+  does not run those tools yet.
 
 ## License
 

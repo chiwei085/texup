@@ -18,6 +18,10 @@ name = "ctex"
 revision = 77677
 
 [[package]]
+name = "dvipdfmx"
+revision = 76377
+
+[[package]]
 name = "fandol"
 revision = 37889
 
@@ -48,10 +52,6 @@ revision = 76924
 [[package]]
 name = "latex-bin"
 revision = 77033
-
-[[package]]
-name = "latexmk"
-revision = 75540
 
 [[package]]
 name = "tex-gyre"

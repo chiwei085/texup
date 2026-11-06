@@ -6,28 +6,30 @@ principles and verified TeX Live behavior. Read it before changing related logic
 ## Code structure
 
 - `src/main.rs`: CLI, manifest and lockfile handling, TeX Live installation
-  (`install-tl` / `tlmgr`), and the build loop that installs missing packages.
+  (`install-tl` / `tlmgr`), and the build loop that runs texweft and installs
+  what it reports missing.
 - `src/tlpdb.rs`: `texlive.tlpdb` parsing; filename-to-provider lookup with
   `*-dev` packages ranked last; full-path-to-package lookup; command-to-package
   lookup for `texup exec`.
-- `src/scan.rs`: missing-file detection from `.log` and extraction of TeX Live
-  files actually read from `.fls` and fonts used from `.xdv`.
-- `tests/fixtures/`: excerpts from real tlpdb, log, `.fls`, and `.xdv` files.
+- `src/scan.rs`: TeX Live files read, from `.fls`, for `texup why`.
+- `tests/fixtures/`: excerpts from real tlpdb and `.fls` files.
 
 ## Principles
 
 - Comments explain intent, constraints, and non-obvious behavior; do not narrate the code.
 - Scope: the manifest/lockfile contract, tlpdb parsing, invoking `install-tl`,
-  `tlmgr`, and `latexmk`, installing missing packages, and generating the lockfile
-  from `.fls`.
+  `tlmgr`, and texweft, installing missing packages, and generating the lockfile
+  from texweft's `dep-info`. Log parsing, rerun decisions, and engine quirks
+  belong to texweft (`~/chiwei/texweft`); texup reads only its JSON Lines
+  messages and never depends on it as a crate.
 - Out of scope: modifying TeX engines, FUSE or lazy filesystems, and reimplementing
   TeX Live installation semantics. Leave `.fmt` generation and `updmap` to
   `tlmgr`. These alternatives were evaluated and were not worth the complexity.
 - Support only x86_64 and aarch64 Linux with glibc (TeX Live's `x86_64-linux` and
   `aarch64-linux`), and pdfLaTeX, XeLaTeX, and LuaLaTeX. The platform is fixed at
   compile time; `cargo install` builds on the host.
-- Keep dependencies limited to `serde` and `toml`. Use `curl`, `tar`, and `xz`
-  directly for downloads and extraction.
+- Keep dependencies limited to `serde`, `toml`, and `serde_json` (texweft's
+  messages). Use `curl`, `tar`, and `xz` directly for downloads and extraction.
 - **Do not generate `latexmkrc`:** Overleaf reads it.
 - Write user-facing messages in English, prefixed with `texup: `.
 
@@ -61,32 +63,40 @@ Preserve the following handling when changing related code.
 
 ### Compilation
 
-- Run `latexmk -pdf -f -synctex=1 -interaction=nonstopmode -file-line-error <main>`
-  with `max_print_line=10000`. Otherwise, log lines wrap at 79 characters and
-  can split missing-file messages.
-- **Add `-g` when retrying after package installation.** Otherwise, latexmk sees
-  unchanged source files and skips the build. It also incorrectly considers
-  the output up to date when `.fls` refers to another TeX Live installation;
-  force a rebuild in that case too. Canonicalize the TeX Live path before
-  comparing it with `.fls` paths.
+- Run `texweft build <main> --engine <e> --outdir . --message-format=json`
+  through `tex()`, which puts the TeX Live `bin` first on `PATH` and sets
+  `max_print_line` and `FONTCONFIG_FILE` (XeLaTeX font lookup needs it).
+  `--outdir .` keeps outputs next to the sources, where LaTeX Workshop's SyncTeX
+  and viewer settings, `texup why`, and existing projects expect them. Until
+  texweft ships release binaries, it must be on `PATH`; report a missing one as
+  `texup: texweft not found on PATH`.
+- Map `missing.kind` to packages: `file` and `font-file` by file name,
+  `font-name` by font name, `font-outline` by `<name>.pfb` (with the cm-super
+  special case), `program` by command name. Install fatal entries and
+  substituted outline fonts (`font-outline` with `substitute: "pk"`); ignore a
+  `.bib` replaced by a shipped `.bbl`. `library` is a system library: print its
+  raw loader line and stop.
+- No force flag is needed after installing: texweft keeps no state for a build
+  that did not converge and fingerprints `ls-R` and the font maps.
 - With a cold cache, each fatal error may reveal only one missing file. Do not
   cap the installation loop. Never retry the same package, so the loop always
   terminates.
-- Bibliography errors can make latexmk return 12 while still producing a PDF.
-  Use PDF existence to decide whether a preview is available; the CLI still
-  returns latexmk's exit code.
+- Preview availability is separate from the outcome: print `preview` whenever
+  texweft reports one (a document with errors still gets citations and
+  references resolved, as on Overleaf), and still exit nonzero unless the
+  outcome is `converged`.
+- Lock the owners of `dep-info.inputs` and the packages providing
+  `dep-info.programs`: inputs name BibTeX's or Biber's files, not the binaries,
+  and an on-demand `biber` must be locked for `--locked` on a fresh cache. An
+  up-to-date build (0 steps) reports both lists too, so a deleted or outdated
+  lockfile is restored, and `--locked` checked, without rebuilding.
+- With `--locked`, any missing entry mapping to a package not in `texup.lock`
+  dies, whatever its kind.
 - Do not rewrite an unchanged lockfile: doing so causes endless rebuilds with
   LaTeX Workshop's `onFileChange` setting.
-
-### Missing-file detection (log formats)
-
-- ``File `x.sty' not found``.
-- ``I can't find file `x'``; append `.tex` when there is no extension.
-- `Font \x=name at 12.0pt not loadable: Metric (TFM) file not found` maps to
-  `name.tfm`.
-
-Reads of `.tfm`, `.pfb`, and `.enc` files are recorded in `.fls`, but not in the
-log. Always generate the lockfile from `.fls`.
+- `texup watch` reads `texweft watch`'s stream and installs what a build reports
+  missing; texweft rebuilds by itself once tlmgr rewrites `ls-R`. It opens no
+  viewer (latexmk -pvc did).
 
 ### Silent fallbacks
 
@@ -96,8 +106,8 @@ reason for keeping a lockfile.
 1. **Missing Type 1 fonts.** When METAFONT is available, it generates bitmap
    `.pk` fonts as substitutes (shown as Type 3 in the PDF), and the log contains
    `/<name>.<dpi>pk>`. Without METAFONT, the error is fatal:
-   `!pdfTeX error: ... Font <name> at 600 not found`. Both cases map to
-   `<name>.pfb`. Type 1 versions of EC/TC fonts are in `cm-super`, but their
+   `!pdfTeX error: ... Font <name> at 600 not found`. texweft reports both as
+   `font-outline` with the TeX font name; texup maps it to `<name>.pfb`. Type 1 versions of EC/TC fonts are in `cm-super`, but their
    filenames differ (`tcrm1200` → `sfrm1200.pfb`). The mapping lives in `.map`
    files and cannot be resolved through tlpdb; currently, handle these fonts
    with a prefix-based special case.
@@ -111,8 +121,8 @@ reason for keeping a lockfile.
 
 ### XeLaTeX
 
-- `scheme-infraonly` has no `xelatex`, and latexmk then fails without a log to
-  scan. Install `xetex` up front, like `latex-bin` for pdfLaTeX, and lock it.
+- `scheme-infraonly` has no `xelatex`. Install `xetex` up front, like
+  `latex-bin` for pdfLaTeX, and lock it.
 - fontspec loads fonts by name through fontconfig, which does not know TeX
   Live's font directories. Generate `<tl>/texup-fonts.conf` (system
   `/etc/fonts/fonts.conf` plus TeX Live's `fonts/{opentype,truetype,type1}`) on
@@ -121,8 +131,8 @@ reason for keeping a lockfile.
   System fonts stay visible because Overleaf has fonts outside TeX Live (Noto
   CJK from Ubuntu 22.04, among others).
 - `.fls` records no OpenType fonts, and xdvipdfmx's reads are not recorded at
-  all. The `.xdv` holds the absolute path of every native font used (opcode 252:
-  k[4] size[4] flags[2] len[1] path); lock the TeX Live ones and note the rest.
+  all. texweft reads them from the `.xdv` (`dep-info` entries with `via: "xdv"`);
+  lock the TeX Live ones and note the rest.
 - Missing fonts: `Font ...=[file.otf]/OT at ... not loadable: Metric (TFM) file
   or installed font not found` maps to `file.otf`; `="Name"` has no tlpdb
   mapping, so match the normalized name against the stem of OpenType/TrueType
@@ -173,9 +183,9 @@ reason for keeping a lockfile.
 
 ## Testing
 
-- `cargo test`: cover each nontrivial behavior (tlpdb parsing, missing-file
-  detection, `*-dev` ordering, and `.fls`-to-package mapping) with at least one
-  `#[test]`, using real excerpts as fixtures.
+- `cargo test`: cover each nontrivial behavior (tlpdb parsing, `*-dev`
+  ordering, and `.fls`-to-package mapping) with at least one `#[test]`, using
+  real excerpts as fixtures. Log parsing is texweft's and tested there.
 - `cargo clippy --all-targets` should produce no warnings.
 - Run end-to-end regression checks when changing installation or build flows:
   1. Keep a known-good PDF as a baseline in `tests/baseline/` (gitignored).
@@ -189,7 +199,7 @@ BibTeX, plus a minimal document.
 
 CI (`.github/workflows/ci.yml`) runs clippy and the tests, then builds
 `tests/e2e/<engine>/` with `--locked` on Ubuntu x86_64 and arm64 and in Debian,
-Fedora, and Arch containers. After changing those documents, regenerate their
+Fedora, and Arch containers, with texweft built from source. After changing those documents, regenerate their
 `texup.lock` with an empty `TEXUP_HOME`.
 
 Releases: bump `version` in `Cargo.toml`, then push a `v<version>` tag.
@@ -207,6 +217,7 @@ without releasing.
   `tlmgr install xetex` already fails in fmtutil with only
   `ERROR: xetex.fmt/xetex` at the end; the cause (`error while loading shared
   libraries`) is earlier in the output. If the library disappears later, xelatex
-  fails before writing a log. Search this run's part of `tlmgr.log` and
-  latexmk's stderr for the loader line and report it. Installing the library and
-  rerunning recovers.
+  fails before writing a log; texweft then reports `missing` with
+  `kind: "library"` (and never the previous run's log). Search this run's part
+  of `tlmgr.log` for the loader line, report texweft's raw line for builds.
+  Installing the library and rerunning recovers.

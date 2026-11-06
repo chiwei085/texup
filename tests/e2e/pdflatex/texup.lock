@@ -40,7 +40,3 @@ revision = 76924
 [[package]]
 name = "latex-bin"
 revision = 77033
-
-[[package]]
-name = "latexmk"
-revision = 75540

@@ -30,10 +30,6 @@ name = "latex-bin"
 revision = 77033
 
 [[package]]
-name = "latexmk"
-revision = 75540
-
-[[package]]
 name = "lua-uni-algos"
 revision = 76195
 
